@@ -80,6 +80,10 @@ jobs:
     needs: firmware
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Two pushes close together: deploy one after the other, the newest last.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write
