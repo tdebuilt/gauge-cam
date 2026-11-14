@@ -996,11 +996,11 @@ const dial = {
         return;
       }
       this.changed();
-    } else if (g.kind === "point" && (g.moved || this.nextValue() === undefined
-        || Math.hypot(x - g.p.x, y - g.p.y) <= 5 / this.scale)) {
-      // Dragged, or tapped right on it. While printed values remain to be placed,
-      // a tap beside a point places the next one: graduations can be a few
-      // pixels apart (0 and 10 cm on an Afriso dial).
+    } else if (g.kind === "point" && (g.moved
+        || Math.hypot(x - g.p.x, y - g.p.y) <= (e.pointerType === "mouse" ? 5 : 10) / this.scale)) {
+      // Dragged, or tapped right on it. A tap beside a point places a new one:
+      // graduations can be a few pixels apart (0 and 10 cm on an Afriso dial),
+      // and extra points go between them.
       if (g.moved) this.changed();
       else this.openBubble(g.p, false);
     } else if (g.kind === "add" || g.kind === "point") {

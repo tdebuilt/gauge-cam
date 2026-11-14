@@ -82,8 +82,9 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
   - puis, à la demande de l'utilisateur, pour toute jauge à aiguille et pas seulement le mazout :
     - modèle « Jauge de cuve, en cm » : un trait tous les 10 cm jusqu'à une fin d'échelle choisie
       (150 par défaut) ; « Pas de trait à … » saute une valeur que le cadran n'a pas ;
-    - un clic sur n'importe quel point le corrige ou le supprime ; un point du modèle supprimé est
-      redemandé ;
+    - un clic pile sur un point (5 px à la souris, 10 px au doigt) le corrige ou le supprime ; un
+      point du modèle supprimé ou changé de valeur est redemandé ; tout autre clic pose un point, en
+      plus du modèle une fois celui-ci complet, sans limite de nombre ; glisser depuis 14 px déplace ;
     - au chargement, une valeur du modèle sans point est comptée comme sautée : un cadran enregistré
       sans 10, 20, 30 reste complet ; le modèle n'est reconnu que si l'unité est le cm (le % pour
       0–100 %) ;
