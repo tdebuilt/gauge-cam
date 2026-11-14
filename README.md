@@ -69,7 +69,8 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 3. **Dial** tab, in four steps: *Photo* (light and rotation), *Framing* (drag the corners around the
    dial; the needle centre is found by itself, click to correct it), *Scale* (pick the gauge model,
    then click the graduations in order: the next value comes by itself; a click between two
-   graduations adds a point and a bubble asks for its value), *Check* (a test reading: if the value
+   graduations adds a point and a bubble asks for its value; zoom with the wheel, two fingers or
+   +/− for precise placement), *Check* (a test reading: if the value
    is right, *Yes, save*).
 4. **Settings** tab: **Tank** (shape and inner dimensions, or the gauging table), then
    **Network and MQTT** (MQTT server).

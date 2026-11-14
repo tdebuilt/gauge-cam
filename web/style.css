@@ -113,10 +113,14 @@ dl.kv dd { margin: 0; font-family: var(--mono); text-align: right; overflow-wrap
 .rail button.done::after { content: ""; position: absolute; top: 7px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); }
 .rail button:focus-visible { outline: 2px solid var(--amb); outline-offset: 2px; }
 .dview { min-width: 0; position: sticky; top: 78px; }
-#d-viewer { width: fit-content; }
-#d-viewer.crop { position: relative; }
-#d-viewer.crop .stage { position: absolute; max-width: none; }
-#d-viewer.crop img { max-width: none; }
+#d-viewer { position: relative; }
+#d-viewer img { position: absolute; max-width: none; }
+#d-viewer canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+#d-viewer.pixels img { image-rendering: pixelated; }
+.zoom { display: flex; align-items: center; gap: 6px; flex: none; }
+.zoom .btn { padding: 4px 12px; font-size: 18px; line-height: 1; }
+.zoom span { font-family: var(--mono); font-size: 13px; min-width: 4ch; text-align: center; color: var(--mut); }
+.vbar small { flex: 1; margin: 0; }
 #d-viewer canvas { cursor: default; }
 #d-viewer[data-step=frame] canvas, #d-viewer[data-step=grad] canvas { cursor: crosshair; }
 .vbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }

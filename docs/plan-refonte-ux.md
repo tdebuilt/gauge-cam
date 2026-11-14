@@ -66,8 +66,9 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
     firmware ne cherche le moyeu qu'avec une échelle ; essai : 2 px de la vérité sur le simulateur,
     7 px sur la photo de la jauge, le mode `hub` affine ensuite ;
   - modèle 0–100 % : 0, 25, 50, 75, 100 ;
-  - Graduations et Vérification montrent l'intérieur du cadre agrandi à la largeur de la colonne, à
-    la place du zoom ;
+  - Graduations et Vérification montrent l'intérieur du cadre agrandi à la largeur de la colonne ;
+    zoom jusqu'à ×8 en plus (molette, deux doigts, boutons +/−), photo déplacée en la glissant,
+    repères redessinés à la taille de l'écran pour rester nets, points gardés au dixième de pixel ;
   - « Enregistrer » seulement à l'étape Vérification, après la lecture d'essai ;
   - sans cadre enregistré, l'appareil lit toute la photo comme avant : `roi` reste `[0, 0, 0, 0]`
     tant que le cadre n'est pas touché.

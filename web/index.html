@@ -73,10 +73,14 @@
       <button data-step="check"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l2.7 2.7L16 9.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="d.step.check"></span></button>
     </nav>
     <div class="dview">
-      <div class="viewer" id="d-viewer"><div class="stage"><img id="d-photo-img" alt=""><canvas id="d-overlay"></canvas>
+      <div class="viewer" id="d-viewer"><img id="d-photo-img" alt=""><canvas id="d-overlay"></canvas>
         <form class="bubble" id="d-bubble" hidden><input id="d-bubble-value" inputmode="decimal" autocomplete="off" data-i18n-placeholder="d.value"><button class="btn pri" type="submit">OK</button><button class="btn" type="button" id="d-bubble-del" data-i18n-title="d.delete">×</button></form>
-      </div></div>
-      <div class="vbar"><span id="d-dirty" class="dirty" data-i18n="d.dirty" hidden></span></div>
+      </div>
+      <div class="vbar">
+        <div class="zoom"><button class="btn" id="d-zoom-out" data-i18n-title="d.zoomOut">−</button><span id="d-zoom-level"></span><button class="btn" id="d-zoom-in" data-i18n-title="d.zoomIn">+</button></div>
+        <small data-i18n="d.zoomHelp"></small>
+        <span id="d-dirty" class="dirty" data-i18n="d.dirty" hidden></span>
+      </div>
     </div>
     <aside class="pnl panel dpanel">
       <div class="dstep" data-step="photo">

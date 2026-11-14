@@ -75,7 +75,8 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
    autour du cadran ; le centre de l'aiguille est trouvé tout seul, un clic le corrige),
    *Graduations* (choisir le modèle de jauge, puis cliquer les graduations dans l'ordre : la valeur
    suivante est proposée toute seule ; un clic entre deux graduations ajoute un point et une bulle
-   demande sa valeur), *Vérification* (lecture d'essai : si la valeur est juste, *Oui, enregistrer*).
+   demande sa valeur ; zoom à la molette, à deux doigts ou par +/− pour placer au plus juste),
+   *Vérification* (lecture d'essai : si la valeur est juste, *Oui, enregistrer*).
 4. Onglet **Réglages** : **Cuve** (forme et dimensions intérieures, ou table de jaugeage), puis
    **Réseau et MQTT** (serveur MQTT).
 

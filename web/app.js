@@ -91,12 +91,17 @@ function at(cx, cy, angle, r) {
   return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
 }
 
-function drawOverlay(canvas, img, scene) {
+// Draws in photo pixels. Without `view` the canvas covers the photo; the dial
+// tab passes the canvas size, the photo-to-canvas mapping (scale a, offset e,
+// f) and a line width in photo pixels, so that marks stay sharp and keep
+// their screen size at any zoom.
+function drawOverlay(canvas, img, scene, view = null) {
   if (!img.naturalWidth) return;
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+  canvas.width = view ? view.w : img.naturalWidth;
+  canvas.height = view ? view.h : img.naturalHeight;
   const ctx = canvas.getContext("2d");
-  const lw = Math.max(1.5, canvas.width / 450);
+  if (view) ctx.setTransform(view.a, 0, 0, view.a, view.e, view.f);
+  const lw = view ? view.lw : Math.max(1.5, img.naturalWidth / 450);
   ctx.lineWidth = lw;
   ctx.font = `${Math.round(lw * 7)}px system-ui, sans-serif`;
   ctx.textBaseline = "middle";
@@ -427,7 +432,8 @@ const MODELS = {
   pct: { values: [0, 25, 50, 75, 100], unit: "%" },
   free: { values: [], unit: null },
 };
-const STEPS = ["photo", "frame", "grad", "check"];
+const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
+const ZOOM_MAX = ZOOMS[ZOOMS.length - 1];
 
 // First guess of the needle hub: the dark disc that contrasts most with its
 // surroundings in the middle of the frame (the dial face is light around
@@ -481,6 +487,13 @@ const dial = {
   orient: null,     // capture settings of the displayed photo and of the draft coordinates
   capturing: false,
   again: false,
+  zoom: 1,          // magnification of the view, 1 = fitted
+  scale: 1,         // screen pixels per photo pixel
+  origin: [0, 0],   // photo pixel at the top left of the unpanned view
+  view: [0, 0],     // viewer size, screen pixels
+  pan: [0, 0],      // screen pixels the view is moved by
+  pointers: new Map(),
+  pinch: null,
 
   img: () => $("#d-photo-img"),
   canvas: () => $("#d-overlay"),
@@ -570,6 +583,8 @@ const dial = {
   show(step, run = true) {
     this.closeBubble(false);
     this.step = step;
+    this.zoom = 1;
+    this.pan = [0, 0];
     this.render();
     if (step === "check" && run && !this.detail && !this.testError) {
       try { this.payload(); } catch { return; }
@@ -734,76 +749,145 @@ const dial = {
       pivot: d.pivot, points, detail: this.detail };
   },
 
-  draw() { drawOverlay(this.canvas(), this.img(), this.scene()); },
+  draw() {
+    const s = this.scale, dpr = devicePixelRatio || 1, [vw, vh] = this.view;
+    const [ox, oy] = this.origin, [panX, panY] = this.pan;
+    drawOverlay(this.canvas(), this.img(), this.scene(), { w: Math.round(vw * dpr), h: Math.round(vh * dpr),
+      a: dpr * s, e: -dpr * (ox * s + panX), f: -dpr * (oy * s + panY), lw: 2 / s });
+  },
 
-  // Graduations and check show the inside of the frame, enlarged to the
-  // width of the column: the graduations are far enough apart for a finger.
+  // Redraws once per frame while zooming or panning.
+  drawSoon() {
+    if (this.drawPending) return;
+    this.drawPending = true;
+    requestAnimationFrame(() => { this.drawPending = false; this.draw(); });
+  },
+
+  // The viewer is a window on the photo: the whole photo fitted to the
+  // column, or for graduations and check the inside of the frame, enlarged.
+  // `zoom` magnifies it further and `pan` (screen pixels) says which part shows.
   layout() {
-    const img = this.img(), viewer = $("#d-viewer"), stage = viewer.firstElementChild, c = this.canvas();
-    const crop = img.naturalWidth && (this.step === "grad" || this.step === "check");
-    viewer.classList.toggle("crop", Boolean(crop));
-    if (!crop) {
-      for (const el of [viewer, stage, img, c]) el.removeAttribute("style");
+    const img = this.img(), viewer = $("#d-viewer");
+    const W = img.naturalWidth, H = img.naturalHeight;
+    if (!W) {
+      viewer.removeAttribute("style");
+      img.removeAttribute("style");
       return;
     }
-    const [fx, fy, fw, fh] = this.frame();
-    const avail = viewer.parentElement.clientWidth;
-    const s = Math.min(avail / fw, innerHeight * 0.75 / fh, 4);
-    const px = (v) => `${Math.round(v * s)}px`;
-    Object.assign(viewer.style, { width: px(fw), height: px(fh) });
-    Object.assign(stage.style, { left: px(-fx), top: px(-fy) });
-    img.style.width = px(img.naturalWidth);
-    Object.assign(c.style, { width: px(img.naturalWidth), height: px(img.naturalHeight) });
+    const crop = this.step === "grad" || this.step === "check";
+    const [fx, fy, fw, fh] = crop ? this.frame() : [0, 0, W, H];
+    const fit = Math.min(viewer.parentElement.clientWidth / fw, innerHeight * 0.75 / fh, crop ? 4 : 1);
+    const s = fit * this.zoom;
+    const vw = Math.round(fw * fit), vh = Math.round(fh * fit);
+    this.scale = s;
+    this.origin = [fx, fy];
+    this.view = [vw, vh];
+    this.pan = [Math.max(0, Math.min(fw * s - vw, this.pan[0])), Math.max(0, Math.min(fh * s - vh, this.pan[1]))];
+    const px = (v) => `${Math.round(v * 100) / 100}px`;
+    Object.assign(viewer.style, { width: px(vw), height: px(vh) });
+    Object.assign(img.style, { width: px(W * s), left: px(-fx * s - this.pan[0]), top: px(-fy * s - this.pan[1]) });
+    viewer.classList.toggle("pixels", s >= 3);  // real pixels when close
+    $("#d-zoom-level").textContent = `×${num(this.zoom, 1)}`;
+    $("#d-zoom-out").disabled = this.zoom <= 1;
+    $("#d-zoom-in").disabled = this.zoom >= ZOOM_MAX;
+    this.placeBubble();
+  },
+
+  // Screen position (in the viewer) of a photo point, and back.
+  screenOf(x, y) {
+    return [(x - this.origin[0]) * this.scale - this.pan[0], (y - this.origin[1]) * this.scale - this.pan[1]];
+  },
+
+  photoAt(cx, cy) {
+    const r = $("#d-viewer").getBoundingClientRect();
+    return [(cx - r.left + this.pan[0]) / this.scale + this.origin[0], (cy - r.top + this.pan[1]) / this.scale + this.origin[1]];
+  },
+
+  // Zooms to `z`, keeping photo point `at` under the screen point (cx, cy).
+  zoomAround(z, at, cx, cy) {
+    const r = $("#d-viewer").getBoundingClientRect();
+    this.zoom = Math.max(1, Math.min(ZOOM_MAX, z));
+    this.layout();
+    this.pan = [(at[0] - this.origin[0]) * this.scale - (cx - r.left), (at[1] - this.origin[1]) * this.scale - (cy - r.top)];
+    this.layout();
+    this.drawSoon();
+  },
+
+  // Zooms around a screen point, the centre of the view by default.
+  zoomAt(z, cx, cy) {
+    if (!this.img().naturalWidth) return;
+    const r = $("#d-viewer").getBoundingClientRect();
+    if (cx === undefined) [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2];
+    this.zoomAround(z, this.photoAt(cx, cy), cx, cy);
   },
 
   // ----- pointer -----
 
   imagePoint(e) {
-    const c = this.canvas();
-    const r = c.getBoundingClientRect();
-    return [Math.round((e.clientX - r.left) * c.width / r.width),
-      Math.round((e.clientY - r.top) * c.height / r.height)];
+    return this.photoAt(e.clientX, e.clientY).map((v) => Math.round(v * 10) / 10);
   },
 
   // Grab distance in photo pixels: about 14 screen pixels.
-  reach() {
-    const c = this.canvas();
-    return 14 * c.width / c.getBoundingClientRect().width;
+  reach() { return 14 / this.scale; },
+
+  pinchState() {
+    const [a, b] = [...this.pointers.values()];
+    return { dist: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2 };
   },
 
   onDown(e) {
     if (!this.img().naturalWidth || !this.draft) return;
-    if (this.bubble) { this.closeBubble(false); return; }
     e.preventDefault();
+    this.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    try { this.canvas().setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+    if (this.pointers.size === 2) {  // two fingers: zoom and pan, drop what the first one started
+      this.drag = null;
+      const p = this.pinchState();
+      this.pinch = { ...p, z0: this.zoom, at: this.photoAt(p.cx, p.cy) };
+      this.draw();
+      return;
+    }
+    if (this.pointers.size > 2 || this.pinch) return;
+    if (this.bubble) { this.closeBubble(false); return; }
     const [x, y] = this.imagePoint(e);
     const near = (px, py) => Math.hypot(px - x, py - y) <= this.reach();
     const d = this.draft;
-    let drag = null;
+    let drag = { kind: "pan" };
     if (this.step === "frame") {
       const [fx, fy, fw, fh] = this.frame();
       const corners = [[fx, fy], [fx + fw, fy], [fx, fy + fh], [fx + fw, fy + fh]];
       const i = corners.findIndex(([cx, cy]) => near(cx, cy));
       if (i >= 0) drag = { kind: "corner", anchor: corners[3 - i] };
       else if (x >= fx && x <= fx + fw && y >= fy && y <= fy + fh) drag = { kind: "inside", from: [x, y], roi: [fx, fy, fw, fh] };
-      else drag = { kind: "corner", anchor: [x, y], fresh: true };
+      else if (this.zoom === 1) drag = { kind: "corner", anchor: [x, y], fresh: true };
     } else if (this.step === "grad") {
       const p = [...d.pts].reverse().find((q) => near(q.x, q.y));
       drag = p ? { kind: "point", p, from: [x, y] } : { kind: "add" };
-    } else {
-      return;
     }
-    drag.start = [x, y];
-    drag.moved = false;
+    Object.assign(drag, { start: [x, y], client: [e.clientX, e.clientY], pan0: [...this.pan], moved: false });
     this.drag = drag;
-    this.canvas().setPointerCapture(e.pointerId);
   },
 
   onMove(e) {
+    if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (this.pinch) {
+      if (this.pointers.size < 2) return;
+      const p = this.pinchState();
+      this.zoomAround(this.pinch.z0 * p.dist / this.pinch.dist, this.pinch.at, p.cx, p.cy);
+      return;
+    }
     const g = this.drag;
     if (!g) return;
-    const [x, y] = this.imagePoint(e);
-    if (!g.moved && Math.hypot(x - g.start[0], y - g.start[1]) < this.reach() / 3) return;
+    if (!g.moved && Math.hypot(e.clientX - g.client[0], e.clientY - g.client[1]) < 5) return;
     g.moved = true;
+    if (g.kind === "pan" || g.kind === "add") {  // dragging the photo moves the view
+      g.kind = "pan";
+      this.pan = [g.pan0[0] - (e.clientX - g.client[0]), g.pan0[1] - (e.clientY - g.client[1])];
+      this.layout();
+      this.drawSoon();
+      return;
+    }
+    const [x, y] = this.imagePoint(e);
     const d = this.draft;
     const img = this.img();
     const clampX = (v) => Math.max(0, Math.min(img.naturalWidth, v));
@@ -822,7 +906,12 @@ const dial = {
     this.draw();
   },
 
-  onUp() {
+  onUp(e) {
+    this.pointers.delete(e.pointerId);
+    if (this.pinch) {
+      if (!this.pointers.size) this.pinch = null;
+      return;
+    }
     const g = this.drag;
     if (!g) return;
     this.drag = null;
@@ -834,6 +923,7 @@ const dial = {
         d.pivotAuto = false;
       } else if (g.moved) {
         if (d.roi[2] < 20 || d.roi[3] < 20) d.roi = g.fresh ? null : g.roi || null;
+        d.roi = d.roi && d.roi.map(Math.round);
         const [fx, fy, fw, fh] = this.frame();
         const inside = d.pivot && d.pivot[0] >= fx && d.pivot[0] <= fx + fw && d.pivot[1] >= fy && d.pivot[1] <= fy + fh;
         if (!d.pivot || d.pivotAuto || !inside) this.autoPivot();
@@ -854,16 +944,22 @@ const dial = {
     }
   },
 
+  onCancel(e) {
+    this.pointers.delete(e.pointerId);
+    if (!this.pointers.size) this.pinch = null;
+    this.drag = null;
+    this.draw();
+  },
+
   // ----- value bubble -----
 
   openBubble(p, isNew) {
-    const c = this.canvas();
+    const img = this.img(), w = img.naturalWidth, h = img.naturalHeight;
     const box = $("#d-bubble");
     this.bubble = { p, isNew };
-    box.style.left = `${100 * p.x / c.width}%`;
-    box.style.top = `${100 * p.y / c.height}%`;
+    this.placeBubble();
     // Towards the needle centre: the dial face is free, the scale is not.
-    const [px, py] = this.draft.pivot || [c.width / 2, c.height / 2];
+    const [px, py] = this.draft.pivot || [w / 2, h / 2];
     box.classList.toggle("below", p.y < py);
     box.classList.toggle("left", p.x > px);
     const input = $("#d-bubble-value");
@@ -874,7 +970,13 @@ const dial = {
     input.select();
   },
 
-  closeBubble(keep) {
+  placeBubble() {
+    if (!this.bubble) return;
+    const [x, y] = this.screenOf(this.bubble.p.x, this.bubble.p.y);
+    Object.assign($("#d-bubble").style, { left: `${x}px`, top: `${y}px` });
+  },
+
+    closeBubble(keep) {
     const b = this.bubble;
     $("#d-bubble").hidden = true;
     this.bubble = null;
@@ -964,9 +1066,16 @@ $("#d-photo-img").addEventListener("load", () => dial.photoLoaded());
 const overlay = $("#d-overlay");
 overlay.addEventListener("pointerdown", (e) => dial.onDown(e));
 overlay.addEventListener("pointermove", (e) => dial.onMove(e));
-overlay.addEventListener("pointerup", () => dial.onUp());
-overlay.addEventListener("pointercancel", () => { dial.drag = null; dial.draw(); });
-addEventListener("resize", () => { if (dial.draft) dial.layout(); });
+overlay.addEventListener("pointerup", (e) => dial.onUp(e));
+overlay.addEventListener("pointercancel", (e) => dial.onCancel(e));
+$("#d-viewer").addEventListener("wheel", (e) => {
+  if (!dial.img().naturalWidth) return;
+  e.preventDefault();
+  dial.zoomAt(dial.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.002)), e.clientX, e.clientY);
+}, { passive: false });
+$("#d-zoom-in").addEventListener("click", () => dial.zoomAt(ZOOMS.find((z) => z > dial.zoom * 1.01) || ZOOM_MAX));
+$("#d-zoom-out").addEventListener("click", () => dial.zoomAt([...ZOOMS].reverse().find((z) => z < dial.zoom / 1.01) || 1));
+addEventListener("resize", () => { if (dial.draft) { dial.layout(); dial.draw(); } });
 $$("#d-steps button").forEach((b) => b.addEventListener("click", () => dial.show(b.dataset.step)));
 $$("#tab-dial [data-go]").forEach((b) => b.addEventListener("click", () => dial.show(b.dataset.go)));
 $("#d-bubble").addEventListener("submit", (e) => { e.preventDefault(); dial.submitBubble(); });
