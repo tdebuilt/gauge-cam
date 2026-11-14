@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gauge Cam – flasher</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1c2330; background: #f4f5f7; }
+  main { max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.5; }
+  .box { background: #fff; border: 1px solid #d9dde5; border-radius: 12px; padding: 20px 24px; margin: 16px 0; }
+  .lang { float: right; }
+  .install { font: inherit; font-weight: 600; padding: 10px 22px; border: 0; border-radius: 999px; background: #1f6feb; color: #fff; cursor: pointer; }
+  code { background: #eef0f4; padding: 1px 5px; border-radius: 4px; }
+  .muted { color: #677085; }
+  [data-lang] { display: none; }
+  html[lang=fr] [data-lang=fr], html[lang=en] [data-lang=en] { display: revert; }
+</style>
+</head>
+<body>
+<main>
+  <select class="lang" id="lang"><option value="fr">Français</option><option value="en">English</option></select>
+  <h1>Gauge Cam</h1>
+  <p data-lang="fr">Lecture d'une jauge à aiguille (niveau de cuve à mazout) par un ESP32-CAM, publiée dans Home Assistant par MQTT.</p>
+  <p data-lang="en">Reads a needle gauge (oil tank level) with an ESP32-CAM and publishes it to Home Assistant over MQTT.</p>
+
+  <div class="box">
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate" id="install" class="install"></button>
+      <span slot="unsupported" data-lang="fr">Navigateur non pris en charge : utilise Chrome ou Edge sur ordinateur.</span>
+      <span slot="unsupported" data-lang="en">Browser not supported: use Chrome or Edge on a computer.</span>
+      <span slot="not-allowed" data-lang="fr">Cette page doit être ouverte en HTTPS.</span>
+      <span slot="not-allowed" data-lang="en">This page must be opened over HTTPS.</span>
+    </esp-web-install-button>
+    <p class="muted">Version <span id="version">…</span></p>
+  </div>
+
+  <div class="box" data-lang="fr">
+    <h2>Installation</h2>
+    <ol>
+      <li>Branche l'ESP32-CAM sur sa carte USB <b>ESP32-CAM-MB</b>, puis sur l'ordinateur.</li>
+      <li>Clique sur le bouton ci-dessus, choisis le port série, puis <b>Installer</b>.
+        Si la connexion échoue, maintiens le bouton <b>IO0</b> de la carte MB en appuyant sur
+        <b>RST</b>, puis relâche-le.</li>
+      <li>Après l'installation, la page propose de <b>régler le Wi-Fi</b> : choisis le réseau
+        (celui des objets connectés) et saisis son mot de passe.</li>
+      <li>Ouvre ensuite l'appareil (lien proposé, ou <code>http://gauge-cam-xxxxxx.local/</code>) et
+        règle le cadran, la cuve et MQTT.</li>
+    </ol>
+    <p class="muted">Sans Wi-Fi réglé, l'appareil ouvre un point d'accès <code>gauge-cam-xxxxxx</code> :
+      connecte-toi dessus, la page de réglage s'ouvre sur <code>http://192.168.4.1/</code>.</p>
+    <p class="muted">Mise à jour d'un appareil déjà installé : onglet Système de son interface, avec
+      le fichier <code>gauge-cam.bin</code> de la <a id="release-fr" href="#">dernière version</a>.</p>
+  </div>
+
+  <div class="box" data-lang="en">
+    <h2>Installation</h2>
+    <ol>
+      <li>Plug the ESP32-CAM into its <b>ESP32-CAM-MB</b> USB board, then into the computer.</li>
+      <li>Click the button above, pick the serial port, then <b>Install</b>. If it cannot connect,
+        hold the <b>IO0</b> button of the MB board while pressing <b>RST</b>, then release it.</li>
+      <li>After the installation the page offers to <b>set up Wi-Fi</b>: pick the network and type
+        its password.</li>
+      <li>Then open the device (offered link, or <code>http://gauge-cam-xxxxxx.local/</code>) and set
+        up the dial, the tank and MQTT.</li>
+    </ol>
+    <p class="muted">Without Wi-Fi settings the device opens a <code>gauge-cam-xxxxxx</code> access point:
+      join it and the set-up page opens on <code>http://192.168.4.1/</code>.</p>
+    <p class="muted">To update an installed device: System tab of its interface, with the
+      <code>gauge-cam.bin</code> file of the <a id="release-en" href="#">latest release</a>.</p>
+  </div>
+</main>
+<script>
+  const select = document.getElementById("lang");
+  const saved = localStorage.getItem("lang");
+  const lang = ["fr", "en"].includes(saved) ? saved : (navigator.language || "en").startsWith("fr") ? "fr" : "en";
+  const label = { fr: "Installer sur l'ESP32-CAM", en: "Install on the ESP32-CAM" };
+  const apply = (l) => {
+    document.documentElement.lang = select.value = l;
+    document.getElementById("install").textContent = label[l];
+  };
+  apply(lang);
+  select.addEventListener("change", () => {
+    apply(select.value);
+    localStorage.setItem("lang", select.value);
+  });
+  fetch("manifest.json").then((r) => r.json()).then((m) => {
+    document.getElementById("version").textContent = m.version;
+    for (const id of ["release-fr", "release-en"]) document.getElementById(id).href = m.release_url || "#";
+  });
+</script>
+</body>
+</html>

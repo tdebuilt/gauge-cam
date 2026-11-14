@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gauge Cam</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1 id="title">Gauge Cam</h1>
+  <span id="conn" class="pill">…</span>
+  <select id="lang" aria-label="Language"></select>
+</header>
+<nav id="tabs">
+  <button data-tab="reading" class="active" data-i18n="tab.reading"></button>
+  <button data-tab="dial" data-i18n="tab.dial"></button>
+  <button data-tab="tank" data-i18n="tab.tank"></button>
+  <button data-tab="camera" data-i18n="tab.camera"></button>
+  <button data-tab="network" data-i18n="tab.network"></button>
+  <button data-tab="system" data-i18n="tab.system"></button>
+</nav>
+<main>
+
+<section id="tab-reading" class="tab active">
+  <div class="cards">
+    <div class="card big"><span class="label" data-i18n="r.level"></span><span id="r-level" class="value">–</span></div>
+    <div class="card big"><span class="label" data-i18n="r.volume"></span><span id="r-volume" class="value">–</span></div>
+    <div class="card big"><span class="label" data-i18n="r.percent"></span><span id="r-percent" class="value">–</span></div>
+  </div>
+  <p id="r-status" class="status"></p>
+  <div class="actions">
+    <button id="r-read" class="primary" data-i18n="r.read"></button>
+    <span id="r-times" class="muted"></span>
+  </div>
+  <div class="viewer"><div class="stage"><img id="r-photo" alt=""><canvas id="r-overlay"></canvas></div></div>
+</section>
+
+<section id="tab-dial" class="tab">
+  <p class="help" data-i18n-html="d.help"></p>
+  <div class="toolbar">
+    <button id="d-photo" data-i18n="d.photo"></button>
+    <span class="sep"></span>
+    <div class="seg" id="d-tools">
+      <button data-tool="roi" data-i18n="d.tool.roi"></button>
+      <button data-tool="pivot" data-i18n="d.tool.pivot"></button>
+      <button data-tool="start" data-i18n="d.tool.start"></button>
+      <button data-tool="end" data-i18n="d.tool.end"></button>
+      <button data-tool="point" data-i18n="d.tool.point"></button>
+    </div>
+    <span class="sep"></span>
+    <label><span data-i18n="d.zoom"></span> <select id="d-zoom"><option value="fit" data-i18n="d.zoom.fit"></option><option value="1">100 %</option><option value="2">200 %</option></select></label>
+  </div>
+  <div class="dial-layout">
+    <div class="viewer scroll" id="d-viewer"><div class="stage"><img id="d-photo-img" alt=""><canvas id="d-overlay"></canvas></div></div>
+    <aside class="panel">
+      <details id="d-shot-box" open>
+        <summary data-i18n="d.shot"></summary>
+        <form id="d-shot" class="shot">
+          <small data-i18n="d.shot.help"></small>
+          <label><span data-i18n="c.led"></span>
+            <span class="range"><input name="led_intensity" type="range" min="0" max="255" step="5"><output id="d-led-value"></output></span></label>
+          <label><span data-i18n="c.ledMs"></span> <input name="led_ms" type="number" min="0" max="5000" step="50"></label>
+          <label><span data-i18n="d.rotation"></span>
+            <select name="rotation"><option value="0">0°</option><option value="90">90° ↻</option><option value="180">180°</option><option value="270">270° ↻</option></select></label>
+          <label class="check"><input name="vflip" type="checkbox"> <span data-i18n="c.vflip"></span></label>
+          <label class="check"><input name="hmirror" type="checkbox"> <span data-i18n="c.hmirror"></span></label>
+          <label><span data-i18n="c.framesize"></span> <select name="framesize"><option>QVGA</option><option>VGA</option><option>SVGA</option></select></label>
+          <label><span data-i18n="c.brightness"></span> <input name="cam_brightness" type="number" min="-2" max="2"></label>
+          <label><span data-i18n="c.contrast"></span> <input name="cam_contrast" type="number" min="-2" max="2"></label>
+        </form>
+      </details>
+      <hr>
+      <p id="d-hint" class="hint"></p>
+      <label><span data-i18n="d.mode"></span>
+        <select id="d-mode">
+          <option value="hub" data-i18n="d.mode.hub"></option>
+          <option value="fixed" data-i18n="d.mode.fixed"></option>
+        </select>
+      </label>
+      <label><span data-i18n="d.unit"></span> <input id="d-unit" size="6"></label>
+      <h3 data-i18n="d.scale"></h3>
+      <table class="points">
+        <thead><tr><th></th><th data-i18n="d.col.value"></th><th></th></tr></thead>
+        <tbody id="d-points"></tbody>
+      </table>
+      <div class="actions">
+        <button id="d-test" data-i18n="d.test"></button>
+        <button id="d-save" class="primary" data-i18n="common.save"></button>
+      </div>
+      <p id="d-result" class="status"></p>
+    </aside>
+  </div>
+</section>
+
+<section id="tab-tank" class="tab">
+  <p class="help" data-i18n-html="t.help"></p>
+  <form id="f-tank" class="form">
+    <label><span data-i18n="t.length"></span> <input name="tank_length_cm" type="number" step="0.1" min="0"></label>
+    <label><span data-i18n="t.width"></span> <input name="tank_width_cm" type="number" step="0.1" min="0"></label>
+    <label><span data-i18n="t.height"></span> <input name="tank_height_cm" type="number" step="0.1" min="0"></label>
+    <label><span data-i18n="t.offset"></span> <input name="level_offset_cm" type="number" step="0.1">
+      <small data-i18n="t.offset.help"></small></label>
+    <p id="t-capacity" class="muted"></p>
+    <button class="primary" data-i18n="common.save"></button>
+  </form>
+</section>
+
+<section id="tab-camera" class="tab">
+  <form id="f-camera" class="form">
+    <label><span data-i18n="c.interval"></span> <input name="interval_min" type="number" min="1" step="1"></label>
+    <p class="help" data-i18n="c.moved"></p>
+    <label><span data-i18n="c.jpeg"></span> <input name="jpeg_quality" type="number" min="4" max="63"></label>
+    <label><span data-i18n="c.minContrast"></span> <input name="min_contrast" type="number" min="0" max="255">
+      <small data-i18n="c.minContrast.help"></small></label>
+    <button class="primary" data-i18n="common.save"></button>
+  </form>
+</section>
+
+<section id="tab-network" class="tab">
+  <form id="f-network" class="form">
+    <label><span data-i18n="n.name"></span> <input name="name"></label>
+    <label><span data-i18n="n.lang"></span> <select name="lang"><option value="fr">Français</option><option value="en">English</option></select></label>
+    <h3 data-i18n="n.wifi"></h3>
+    <label><span data-i18n="n.ssid"></span> <input name="wifi_ssid" list="ssids"><datalist id="ssids"></datalist></label>
+    <button type="button" id="n-scan" data-i18n="n.scan"></button>
+    <label><span data-i18n="n.password"></span> <input name="wifi_pass" type="password" autocomplete="new-password"></label>
+    <h3 data-i18n="n.mqtt"></h3>
+    <label><span data-i18n="n.host"></span> <input name="mqtt_host"></label>
+    <label><span data-i18n="n.port"></span> <input name="mqtt_port" type="number" min="1" max="65535"></label>
+    <label><span data-i18n="n.user"></span> <input name="mqtt_user"></label>
+    <label><span data-i18n="n.password"></span> <input name="mqtt_pass" type="password" autocomplete="new-password"></label>
+    <label><span data-i18n="n.prefix"></span> <input name="mqtt_prefix"></label>
+    <label><span data-i18n="n.discovery"></span> <input name="discovery_prefix"></label>
+    <h3 data-i18n="n.access"></h3>
+    <label><span data-i18n="n.uiPassword"></span> <input name="ui_password" type="password" autocomplete="new-password"></label>
+    <label><input name="ui_password_clear" type="checkbox"> <span data-i18n="n.uiClear"></span></label>
+    <button class="primary" data-i18n="common.save"></button>
+  </form>
+</section>
+
+<section id="tab-system" class="tab">
+  <dl id="s-info" class="info"></dl>
+  <h3 data-i18n="s.update"></h3>
+  <p class="help" data-i18n-html="s.update.help"></p>
+  <div class="actions">
+    <input id="s-file" type="file" accept=".bin">
+    <button id="s-update" data-i18n="s.updateButton"></button>
+    <progress id="s-progress" max="100" value="0" hidden></progress>
+  </div>
+  <h3 data-i18n="s.backup"></h3>
+  <p class="help" data-i18n="s.backup.help"></p>
+  <div class="actions">
+    <button id="s-export" data-i18n="s.export"></button>
+    <label class="button"><span data-i18n="s.import"></span><input id="s-import" type="file" accept=".json" hidden></label>
+    <button id="s-restart" data-i18n="s.restart"></button>
+  </div>
+</section>
+
+</main>
+<div id="toast" hidden></div>
+<script src="/i18n.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

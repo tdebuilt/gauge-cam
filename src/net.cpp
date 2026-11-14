@@ -1,0 +1,107 @@
+#include "net.h"
+
+#include <DNSServer.h>
+#include <ESPmDNS.h>
+#include <WiFi.h>
+
+#include "config.h"
+
+namespace {
+
+constexpr uint32_t kApAfterMs = 30000;  // without station link
+constexpr uint32_t kApKeepMs = 120000;  // after the station link is back
+constexpr uint32_t kRetryMs = 30000;
+
+String host;
+DNSServer dns;
+bool ap_active = false;
+bool mdns_started = false;
+uint32_t down_since = 0;
+uint32_t up_since = 0;
+uint32_t last_retry = 0;
+
+void startAp() {
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(host.c_str());  // open: only up while the device is unconfigured or offline
+  dns.start(53, "*", WiFi.softAPIP());
+  ap_active = true;
+  Serial.printf("Access point %s on http://%s/\n", host.c_str(), WiFi.softAPIP().toString().c_str());
+}
+
+void stopAp() {
+  dns.stop();
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_STA);
+  ap_active = false;
+}
+
+}  // namespace
+
+void netBegin(const String& hostname) {
+  host = hostname;
+  WiFi.persistent(false);
+  WiFi.setHostname(host.c_str());
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  down_since = millis();
+  if (config.wifi_ssid.length()) {
+    WiFi.begin(config.wifi_ssid.c_str(), config.wifi_pass.c_str());
+  } else {
+    startAp();
+  }
+}
+
+void netLoop() {
+  const uint32_t now = millis();
+  if (ap_active) dns.processNextRequest();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!up_since) {
+      up_since = now;
+      Serial.printf("Wi-Fi connected: http://%s/\n", WiFi.localIP().toString().c_str());
+      if (!mdns_started && MDNS.begin(host.c_str())) {
+        MDNS.addService("http", "tcp", 80);
+        mdns_started = true;
+      }
+    }
+    down_since = 0;
+    if (ap_active && now - up_since > kApKeepMs) stopAp();
+    return;
+  }
+  up_since = 0;
+  if (!down_since) down_since = now;
+  if (!ap_active && now - down_since > kApAfterMs) startAp();
+  if (config.wifi_ssid.length() && now - last_retry > kRetryMs) {
+    last_retry = now;
+    WiFi.begin(config.wifi_ssid.c_str(), config.wifi_pass.c_str());
+  }
+}
+
+bool netConnect(const String& ssid, const String& pass) {
+  WiFi.disconnect();
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  const uint32_t start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) delay(200);
+  if (WiFi.status() != WL_CONNECTED) {
+    if (config.wifi_ssid.length()) WiFi.begin(config.wifi_ssid.c_str(), config.wifi_pass.c_str());
+    return false;
+  }
+  config.wifi_ssid = ssid;
+  config.wifi_pass = pass;
+  config.save();
+  return true;
+}
+
+bool netConnected() { return WiFi.status() == WL_CONNECTED; }
+bool netApActive() { return ap_active; }
+
+String netUrl() { return "http://" + WiFi.localIP().toString() + "/"; }
+
+void netToJson(JsonObject out) {
+  out["connected"] = netConnected();
+  out["ssid"] = config.wifi_ssid;
+  out["ip"] = WiFi.localIP().toString();
+  out["rssi"] = netConnected() ? WiFi.RSSI() : 0;
+  out["hostname"] = host;
+  out["ap"] = ap_active;
+  if (ap_active) out["ap_ip"] = WiFi.softAPIP().toString();
+}

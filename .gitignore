@@ -1,0 +1,6 @@
+build/
+.pio/
+src/generated/
+__pycache__/
+dist/
+site/
