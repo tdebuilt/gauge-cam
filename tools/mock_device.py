@@ -9,7 +9,8 @@ C++ code through build/gauge_cli.
     python3 tools/mock_device.py [port]
 
 POST /mock/level?v=40 redraws the dial at another level (to try the jump
-filter and the list of refused readings).
+filter and the list of refused readings). The update check always finds a
+release v0.2.0; installing it takes a few seconds.
 """
 import copy
 import io
@@ -17,7 +18,9 @@ import json
 import os
 import subprocess
 import sys
+import math
 import tempfile
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -35,22 +38,63 @@ SECRETS = ("wifi_pass", "mqtt_pass", "ui_password", "ap_password")
 CONFIG = {
     "name": "Gauge Cam", "lang": "fr", "wifi_ssid": "maison", "mqtt_host": "", "mqtt_port": 1883,
     "mqtt_user": "", "mqtt_prefix": "gauge-cam", "discovery_prefix": "homeassistant",
-    "ha_discovery": True, "wifi_pass": "secret", "mqtt_pass": "", "ui_password": "", "ap_password": "",
+    "ha_discovery": True, "ntp_server": "pool.ntp.org", "update_check": True,
+    "wifi_pass": "secret", "mqtt_pass": "", "ui_password": "", "ap_password": "",
     "samples": 3, "max_jump": 5,
     "interval_s": 3600, "framesize": "VGA", "vflip": False, "hmirror": False, "rotation": 0,
     "led_intensity": 128, "led_ms": 400, "cam_brightness": 0, "cam_contrast": 0,
+    "exposure_auto": True, "exposure": 300, "gain": 0,
     "jpeg_quality": 10, "roi": [0, 0, 0, 0], "pivot_mode": "hub", "pivot_x": -1, "pivot_y": -1,
-    "points": [], "unit": "cm", "min_contrast": 20, "tank_length_cm": 0, "tank_width_cm": 0,
-    "tank_height_cm": 0, "level_offset_cm": 0,
+    "points": [], "unit": "cm", "min_contrast": 20, "tank_shape": "box", "tank_length_cm": 0,
+    "tank_width_cm": 0, "tank_height_cm": 0, "tank_diameter_cm": 0, "tank_table": [], "level_offset_cm": 0,
 }
 FRAME = {"QVGA": (320, 240), "VGA": (640, 480), "SVGA": (800, 600)}
 CONFIRMATIONS = 2
 FILTER = {"ref": None, "candidate": None, "pending": 0}  # same logic as gauge::JumpFilter
 FAILURES = []  # newest first, at most 4
+UPDATE = {"installed": "v0.1.0", "latest": "", "checked": 0, "busy": False, "progress": None,
+          "error": "", "restart_note": ""}
+LOG = []
 STATE = {"photo": None, "photo_size": (0, 0), "photo_at": 0, "failure_id": 0, "attempt": None, "good": None, "boot": time.time()}
 DIAL = draw_oil_dial(100)[0]
 TMP = tempfile.mkdtemp(prefix="gauge-cam-mock-")
 PPM = os.path.join(TMP, "photo.ppm")
+
+
+def log(msg):
+    LOG.append({"t": int(time.time() - STATE["boot"]), "at": int(time.time()), "msg": msg})
+    del LOG[:-80]
+
+
+def tank_volume(cfg, level):
+    """Same formulas as gauge::Tank; returns (volume, percent), None when unknown."""
+    shape, table = cfg["tank_shape"], cfg["tank_table"]
+    length, width, height, diam = (cfg["tank_length_cm"], cfg["tank_width_cm"], cfg["tank_height_cm"],
+                                   cfg["tank_diameter_cm"])
+    ready = {"box": length > 0 and width > 0, "hcyl": length > 0 and diam > 0, "vcyl": diam > 0,
+             "table": len(table) >= 2}[shape]
+    full = {"box": height, "hcyl": diam, "vcyl": height, "table": table[-1][0] if table else 0}[shape]
+
+    def volume(lv):
+        if full > 0:
+            lv = min(lv, full)
+        lv = max(lv, table[0][0] if shape == "table" else 0)
+        if shape == "box":
+            return lv * length * width / 1000
+        if shape == "vcyl":
+            return lv * math.pi * diam * diam / 4 / 1000
+        if shape == "hcyl":
+            r = diam / 2
+            return (r * r * math.acos((r - lv) / r) - (r - lv) * math.sqrt(max(0, 2 * r * lv - lv * lv))) * length / 1000
+        for (l0, v0), (l1, v1) in zip(table, table[1:]):
+            if lv <= l1:
+                return v0 + (v1 - v0) * (lv - l0) / (l1 - l0)
+        return table[-1][1]
+
+    vol = volume(level) if ready else None
+    cap = volume(full) if ready and full > 0 else 0
+    pct = 100 * vol / cap if cap > 0 else (100 * level / full if full > 0 else None)
+    return vol, pct
 
 
 def capture(cfg):
@@ -63,6 +107,8 @@ def capture(cfg):
     frame.paste(dial, (130, 70))
     frame = frame.resize(FRAME[cfg["framesize"]])
     light = 0.35 + 0.65 * cfg["led_intensity"] / 255 + 0.12 * cfg["cam_brightness"]
+    if not cfg["exposure_auto"]:  # fixed exposure: brightness follows the settings
+        light *= cfg["exposure"] / 300 * (1 + cfg["gain"] / 8)
     frame = ImageEnhance.Brightness(frame).enhance(max(0.05, light))
     frame = ImageEnhance.Contrast(frame).enhance(1 + 0.2 * cfg["cam_contrast"])
     if cfg["hmirror"]:
@@ -97,10 +143,7 @@ def read(cfg):
     if out["ok"]:
         level = out["value"] + cfg["level_offset_cm"]
         out["level"] = level
-        if cfg["tank_length_cm"] > 0 and cfg["tank_width_cm"] > 0:
-            out["volume_l"] = level * cfg["tank_length_cm"] * cfg["tank_width_cm"] / 1000
-        if cfg["tank_height_cm"] > 0:
-            out["percent"] = 100 * level / cfg["tank_height_cm"]
+        out["volume_l"], out["percent"] = tank_volume(cfg, level)
     return out
 
 
@@ -135,7 +178,7 @@ def reading_json(r, cfg):
     """Same shape as readingToJson() in the firmware."""
     if not r:
         return {"ok": False, "age_s": -1, "level": None, "unit": cfg["unit"], "volume_l": None, "percent": None}
-    out = {"ok": r["ok"], "age_s": int(time.time() - r["at"]), "unit": cfg["unit"],
+    out = {"ok": r["ok"], "age_s": int(time.time() - r["at"]), "at": int(r["at"]), "unit": cfg["unit"],
            "level": round(r["level"], 1) if r.get("level") is not None else None,
            "volume_l": round(r["volume_l"]) if r.get("volume_l") is not None else None,
            "percent": round(r["percent"], 1) if r.get("percent") is not None else None}
@@ -153,6 +196,29 @@ def reading_json(r, cfg):
     return out
 
 
+def install():
+    for p in range(0, 101, 10):
+        UPDATE["progress"] = p
+        time.sleep(0.4)
+    log(f"Restarting: update to {UPDATE['latest']} installed")
+    UPDATE.update(installed=UPDATE["latest"], busy=False, progress=None,
+                  restart_note=f"update to {UPDATE['latest']} installed")
+    STATE["boot"] = time.time()
+    LOG.clear()
+    log(f"gauge-cam {UPDATE['installed']} (gauge-cam-mock01), started by: software")
+
+
+def update_json():
+    available = bool(UPDATE["latest"]) and UPDATE["latest"] != UPDATE["installed"]
+    out = {"installed": UPDATE["installed"], "latest": UPDATE["latest"], "available": available,
+           "checked_s": int(time.time() - UPDATE["checked"]) if UPDATE["checked"] else -1,
+           "busy": UPDATE["busy"], "release_url": "https://github.com/tdelix/gauge-cam/releases/latest",
+           "pending_verify": False}
+    if UPDATE["progress"] is not None:
+        out["progress"] = UPDATE["progress"]
+    return out
+
+
 def public_config():
     out = {k: v for k, v in CONFIG.items() if k not in SECRETS}
     for k in SECRETS:
@@ -162,6 +228,9 @@ def public_config():
 
 def apply_config(body):
     nxt = copy.deepcopy(CONFIG)
+    moved = any(k in body and body[k] != CONFIG[k] for k in ("mqtt_host", "mqtt_port", "mqtt_user"))
+    if moved and CONFIG["mqtt_pass"] and not body.get("mqtt_pass") and not body.get("mqtt_pass_clear"):
+        raise ValueError("type the MQTT password again to change the server, port or user")
     for key, value in body.items():
         if key.endswith("_clear") and key[:-6] in SECRETS:
             if value:
@@ -187,6 +256,14 @@ def apply_config(body):
         raise ValueError("rotation must be 0, 90, 180 or 270")
     if nxt["framesize"] not in FRAME:
         raise ValueError("framesize must be QVGA, VGA or SVGA")
+    if not 0 <= nxt["exposure"] <= 1200 or not 0 <= nxt["gain"] <= 30:
+        raise ValueError("exposure must be 0 to 1200 and gain 0 to 30")
+    if nxt["tank_shape"] not in ("box", "hcyl", "vcyl", "table"):
+        raise ValueError("tank_shape must be box, hcyl, vcyl or table")
+    table = nxt["tank_table"]
+    if len(table) > 40 or any(len(r) != 2 for r in table) or any(
+            b[0] <= a[0] or b[1] < a[1] for a, b in zip(table, table[1:])):
+        raise ValueError("tank table: at most 40 rows, levels increasing, litres never decreasing")
     restart = nxt["wifi_ssid"] != CONFIG["wifi_ssid"] or nxt["wifi_pass"] != CONFIG["wifi_pass"]
     CONFIG.clear()
     CONFIG.update(nxt)
@@ -219,8 +296,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             age = int(time.time() - STATE["photo_at"]) if STATE["photo"] else None
             return self.send(200, {
-                "name": CONFIG["name"], "id": "gauge-cam-mock01", "version": "mock",
-                "uptime_s": int(time.time() - STATE["boot"]), "heap_free": 180000, "psram_free": 3200000,
+                "name": CONFIG["name"], "id": "gauge-cam-mock01", "version": UPDATE["installed"],
+                "uptime_s": int(time.time() - STATE["boot"]), "heap_free": 180000, "heap_min": 121000,
+                "psram_free": 3200000, "time": int(time.time()),
+                "reset_reason": "software" if UPDATE["restart_note"] else "poweron",
+                **({"restart_note": UPDATE["restart_note"]} if UPDATE["restart_note"] else {}),
+                "update": update_json(),
                 "wifi": {"connected": True, "ssid": CONFIG["wifi_ssid"], "ip": "127.0.0.1", "rssi": -61,
                          "hostname": "gauge-cam-mock01", "ap": False},
                 "mqtt": {"configured": bool(CONFIG["mqtt_host"]), "connected": bool(CONFIG["mqtt_host"])},
@@ -248,6 +329,8 @@ class Handler(BaseHTTPRequestHandler):
                 if str(f["id"]) == wanted and f["photo"]:
                     return self.send(200, f["photo"], "image/jpeg")
             return self.send(404, {"error": "no such photo"})
+        if path == "/api/log":
+            return self.send(200, LOG)
         if path == "/api/wifi/scan":
             return self.send(200, [{"ssid": "maison", "rssi": -58, "open": False},
                                    {"ssid": "maison-iot", "rssi": -63, "open": False}])
@@ -276,6 +359,7 @@ class Handler(BaseHTTPRequestHandler):
                 r = read(CONFIG)
                 jump_filter(r)
                 STATE["attempt"] = r
+                log(f"Reading: {r['level']:.1f} {CONFIG['unit']}" if r["ok"] else f"Reading refused: {r['error']}")
                 if r["ok"]:
                     STATE["good"] = r
                 elif CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2:
@@ -289,6 +373,19 @@ class Handler(BaseHTTPRequestHandler):
                 global DIAL
                 DIAL = draw_oil_dial(float(self.path.split("v=")[-1]))[0]
                 return self.send(200, {"ok": True})
+            if path == "/api/update/check":
+                UPDATE.update(latest="v0.2.0", checked=time.time())
+                log("Latest release: v0.2.0" + (" (update available)" if UPDATE["installed"] != "v0.2.0" else ""))
+                return self.send(200, {"checking": True})
+            if path == "/api/update/install":
+                if UPDATE["busy"]:
+                    return self.send(503, {"error": "firmware update in progress"})
+                if not UPDATE["latest"] or UPDATE["latest"] == UPDATE["installed"]:
+                    return self.send(500, {"error": "no newer release to install"})
+                UPDATE.update(busy=True, progress=0)
+                log("Update requested from the interface")
+                threading.Thread(target=install, daemon=True).start()
+                return self.send(200, {"installing": True})
             if path == "/api/restart":
                 return self.send(200, {"restart": True})
             if path == "/api/update":
@@ -300,6 +397,8 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+    log("gauge-cam v0.1.0 (gauge-cam-mock01), started by: poweron")
+    log("Wi-Fi connected to maison (-61 dBm): http://127.0.0.1/")
     capture(CONFIG)
     print(f"mock gauge-cam on http://127.0.0.1:{port}/")
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

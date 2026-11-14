@@ -38,6 +38,19 @@ gauge::Settings Config::gaugeSettings() const {
   return s;
 }
 
+gauge::Tank Config::tank() const {
+  gauge::Tank t;
+  if (tank_shape == "hcyl") t.shape = gauge::TankShape::HorizontalCylinder;
+  if (tank_shape == "vcyl") t.shape = gauge::TankShape::VerticalCylinder;
+  if (tank_shape == "table") t.shape = gauge::TankShape::Table;
+  t.length_cm = tank_length_cm;
+  t.width_cm = tank_width_cm;
+  t.height_cm = tank_height_cm;
+  t.diameter_cm = tank_diameter_cm;
+  t.table = tank_table;
+  return t;
+}
+
 void Config::toJson(JsonObject out, bool with_secrets) const {
   out["name"] = name;
   out["lang"] = lang;
@@ -48,6 +61,8 @@ void Config::toJson(JsonObject out, bool with_secrets) const {
   out["mqtt_prefix"] = mqtt_prefix;
   out["discovery_prefix"] = discovery_prefix;
   out["ha_discovery"] = ha_discovery;
+  out["ntp_server"] = ntp_server;
+  out["update_check"] = update_check;
   if (with_secrets) {
     out["wifi_verified"] = wifi_verified;  // device state, stored but not editable
     out["ui_password"] = ui_password;
@@ -69,6 +84,9 @@ void Config::toJson(JsonObject out, bool with_secrets) const {
   out["led_ms"] = led_ms;
   out["cam_brightness"] = cam_brightness;
   out["cam_contrast"] = cam_contrast;
+  out["exposure_auto"] = exposure_auto;
+  out["exposure"] = exposure;
+  out["gain"] = gain;
   out["jpeg_quality"] = jpeg_quality;
   JsonArray r = out["roi"].to<JsonArray>();
   r.add(roi.x);
@@ -89,9 +107,17 @@ void Config::toJson(JsonObject out, bool with_secrets) const {
   out["min_contrast"] = min_contrast;
   out["samples"] = samples;
   out["max_jump"] = max_jump;
+  out["tank_shape"] = tank_shape;
   out["tank_length_cm"] = tank_length_cm;
   out["tank_width_cm"] = tank_width_cm;
   out["tank_height_cm"] = tank_height_cm;
+  out["tank_diameter_cm"] = tank_diameter_cm;
+  JsonArray table = out["tank_table"].to<JsonArray>();
+  for (const auto& row : tank_table) {
+    JsonArray a = table.add<JsonArray>();
+    a.add(row.first);
+    a.add(row.second);
+  }
   out["level_offset_cm"] = level_offset_cm;
 }
 
@@ -106,10 +132,21 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   takeString(in, "mqtt_prefix", next.mqtt_prefix);
   takeString(in, "discovery_prefix", next.discovery_prefix);
   take(in, "ha_discovery", next.ha_discovery);
+  takeString(in, "ntp_server", next.ntp_server);
+  take(in, "update_check", next.update_check);
   takeSecret(in, "ui_password", next.ui_password);
   takeSecret(in, "wifi_pass", next.wifi_pass);
   takeSecret(in, "mqtt_pass", next.mqtt_pass);
   takeSecret(in, "ap_password", next.ap_password);
+  // The stored MQTT password must not follow the device to another server:
+  // whoever can reach this interface could otherwise collect it.
+  const bool mqtt_moved = next.mqtt_host != mqtt_host || next.mqtt_port != mqtt_port ||
+                          next.mqtt_user != mqtt_user;
+  const bool pass_given = in["mqtt_pass"].is<const char*>() && strlen(in["mqtt_pass"].as<const char*>()) > 0;
+  if (mqtt_moved && mqtt_pass.length() && !pass_given && !in["mqtt_pass_clear"].as<bool>()) {
+    error = "type the MQTT password again to change the server, port or user";
+    return false;
+  }
   // New Wi-Fi credentials have not been tried yet.
   if (next.wifi_ssid != wifi_ssid || next.wifi_pass != wifi_pass) next.wifi_verified = false;
   take(in, "interval_s", next.interval_s);
@@ -121,6 +158,9 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   take(in, "led_ms", next.led_ms);
   take(in, "cam_brightness", next.cam_brightness);
   take(in, "cam_contrast", next.cam_contrast);
+  take(in, "exposure_auto", next.exposure_auto);
+  take(in, "exposure", next.exposure);
+  take(in, "gain", next.gain);
   take(in, "jpeg_quality", next.jpeg_quality);
   if (in["roi"].is<JsonArrayConst>()) {
     JsonArrayConst r = in["roi"];
@@ -147,11 +187,28 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   take(in, "min_contrast", next.min_contrast);
   take(in, "samples", next.samples);
   take(in, "max_jump", next.max_jump);
+  takeString(in, "tank_shape", next.tank_shape);
+  take(in, "tank_diameter_cm", next.tank_diameter_cm);
+  if (in["tank_table"].is<JsonArrayConst>()) {
+    next.tank_table.clear();
+    for (JsonArrayConst a : in["tank_table"].as<JsonArrayConst>()) {
+      if (a.size() != 2) {
+        error = "each tank table row must be [level, litres]";
+        return false;
+      }
+      next.tank_table.push_back({a[0].as<float>(), a[1].as<float>()});
+    }
+  }
   take(in, "tank_length_cm", next.tank_length_cm);
   take(in, "tank_width_cm", next.tank_width_cm);
   take(in, "tank_height_cm", next.tank_height_cm);
   take(in, "level_offset_cm", next.level_offset_cm);
 
+  bool table_ok = next.tank_table.size() <= 40;
+  for (size_t i = 1; i < next.tank_table.size(); ++i) {
+    table_ok = table_ok && next.tank_table[i].first > next.tank_table[i - 1].first &&
+               next.tank_table[i].second >= next.tank_table[i - 1].second;
+  }
   if (next.lang != "fr" && next.lang != "en") {
     error = "lang must be fr or en";
   } else if (next.pivot_mode != "hub" && next.pivot_mode != "fixed") {
@@ -167,6 +224,16 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   } else if (next.cam_brightness < -2 || next.cam_brightness > 2 ||
              next.cam_contrast < -2 || next.cam_contrast > 2) {
     error = "camera brightness and contrast must be between -2 and 2";
+  } else if (next.exposure > 1200 || next.gain > 30) {
+    error = "exposure must be 0 to 1200 and gain 0 to 30";
+  } else if (next.tank_shape != "box" && next.tank_shape != "hcyl" && next.tank_shape != "vcyl" &&
+             next.tank_shape != "table") {
+    error = "tank_shape must be box, hcyl, vcyl or table";
+  } else if (next.tank_length_cm < 0 || next.tank_width_cm < 0 || next.tank_height_cm < 0 ||
+             next.tank_diameter_cm < 0) {
+    error = "tank dimensions cannot be negative";
+  } else if (!table_ok) {
+    error = "tank table: at most 40 rows, levels increasing, litres never decreasing";
   } else if (next.samples < 1 || next.samples > 5) {
     error = "samples must be between 1 and 5";
   } else if (next.max_jump < 0) {

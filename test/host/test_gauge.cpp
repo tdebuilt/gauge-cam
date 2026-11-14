@@ -72,6 +72,60 @@ int testJumpFilter() {
   return failures;
 }
 
+
+// Tank volumes against hand-computed values; returns the number of failures.
+int testTank() {
+  using gauge::Tank;
+  using gauge::TankShape;
+  int failures = 0;
+  auto check = [&failures](const char* what, float got, float want, float tol) {
+    if (std::isnan(got) != std::isnan(want) || (!std::isnan(want) && std::fabs(got - want) > tol)) {
+      std::printf("FAIL tank %s: %g, expected %g\n", what, got, want);
+      ++failures;
+    }
+  };
+  Tank box;
+  box.length_cm = 200;
+  box.width_cm = 100;
+  check("box not full height", box.volume(50), 1000, 0.01f);
+  check("box percent unknown", box.percent(50), NAN, 0);
+  box.height_cm = 150;
+  check("box capacity", box.capacity(), 3000, 0.01f);
+  check("box clamp high", box.volume(170), 3000, 0.01f);
+  check("box clamp low", box.volume(-5), 0, 0.01f);
+  check("box percent", box.percent(75), 50, 0.01f);
+
+  Tank h;  // 100 cm diameter, 200 cm long: 1570.8 L
+  h.shape = TankShape::HorizontalCylinder;
+  h.length_cm = 200;
+  h.diameter_cm = 100;
+  check("hcyl capacity", h.capacity(), 1570.80f, 0.1f);
+  check("hcyl half", h.volume(50), 785.40f, 0.1f);
+  check("hcyl quarter height", h.volume(25), 307.09f, 0.1f);  // segment 1535.5 cm2
+  check("hcyl three quarters", h.volume(75), 1570.80f - 307.09f, 0.1f);
+  check("hcyl empty", h.volume(0), 0, 0.01f);
+  check("hcyl percent", h.percent(50), 50, 0.01f);
+
+  Tank v;
+  v.shape = TankShape::VerticalCylinder;
+  v.diameter_cm = 100;
+  v.height_cm = 120;
+  check("vcyl 10 cm", v.volume(10), 78.54f, 0.01f);
+  check("vcyl capacity", v.capacity(), 942.48f, 0.05f);
+
+  Tank t;
+  t.shape = TankShape::Table;
+  t.table = {{0, 0}, {40, 500}, {150, 3000}};
+  check("table interpolated", t.volume(95), 1750, 0.01f);
+  check("table first point", t.volume(-3), 0, 0.01f);
+  check("table capacity", t.capacity(), 3000, 0.01f);
+  check("table percent", t.percent(40), 500.f / 30, 0.01f);
+  t.table = {{0, 0}};
+  check("table not ready", t.volume(10), NAN, 0);
+  std::printf("%s tank volumes\n", failures ? "FAIL" : "OK  ");
+  return failures;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -139,5 +193,6 @@ int main(int argc, char** argv) {
   }
   std::printf("%d/%d cases within tolerance\n", total - failures, total);
   failures += testJumpFilter();
+  failures += testTank();
   return failures ? 1 : 0;
 }

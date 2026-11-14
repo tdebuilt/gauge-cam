@@ -419,4 +419,70 @@ void rotateRgb(const uint8_t* src, int width, int height, int degrees, uint8_t* 
   }
 }
 
+// ---------- tank ----------
+
+namespace {
+
+
+// Area of the part of a circle of radius r below the height h (0..2r).
+float circleSegment(float r, float h) {
+  return r * r * std::acos((r - h) / r) - (r - h) * std::sqrt(std::max(0.f, 2 * r * h - h * h));
+}
+
+}  // namespace
+
+bool Tank::ready() const {
+  switch (shape) {
+    case TankShape::Box: return length_cm > 0 && width_cm > 0;
+    case TankShape::HorizontalCylinder: return length_cm > 0 && diameter_cm > 0;
+    case TankShape::VerticalCylinder: return diameter_cm > 0;
+    case TankShape::Table: return table.size() >= 2;
+  }
+  return false;
+}
+
+float Tank::fullLevel() const {
+  switch (shape) {
+    case TankShape::Box:
+    case TankShape::VerticalCylinder: return std::max(0.f, height_cm);
+    case TankShape::HorizontalCylinder: return std::max(0.f, diameter_cm);
+    case TankShape::Table: return table.empty() ? 0.f : table.back().first;
+  }
+  return 0;
+}
+
+float Tank::capacity() const {
+  const float full = fullLevel();
+  return ready() && full > 0 ? volume(full) : 0.f;
+}
+
+float Tank::volume(float level) const {
+  if (!ready() || std::isnan(level)) return NAN;
+  const float full = fullLevel();
+  if (full > 0) level = std::min(level, full);
+  level = std::max(level, shape == TankShape::Table ? table.front().first : 0.f);
+  switch (shape) {
+    case TankShape::Box: return level * length_cm * width_cm / 1000.f;
+    case TankShape::VerticalCylinder:
+      return level * kPi * diameter_cm * diameter_cm / 4 / 1000.f;
+    case TankShape::HorizontalCylinder:
+      return circleSegment(diameter_cm / 2, level) * length_cm / 1000.f;
+    case TankShape::Table:
+      for (size_t i = 1; i < table.size(); ++i) {
+        const auto& a = table[i - 1];
+        const auto& b = table[i];
+        if (level <= b.first) return a.second + (b.second - a.second) * (level - a.first) / (b.first - a.first);
+      }
+      return table.back().second;
+  }
+  return NAN;
+}
+
+float Tank::percent(float level) const {
+  const float cap = capacity();
+  if (cap > 0) return 100.f * volume(level) / cap;
+  const float full = fullLevel();
+  return full > 0 && !std::isnan(level) ? 100.f * level / full : NAN;
+}
+
 }  // namespace gauge

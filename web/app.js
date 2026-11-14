@@ -36,6 +36,9 @@ function toast(message, isError = false) {
 const num = (v, decimals = 1) => (v === null || v === undefined || Number.isNaN(v))
   ? "–" : Number(v).toLocaleString(lang, { maximumFractionDigits: decimals });
 
+const dateTime = (epoch) => new Date(epoch * 1000).toLocaleString(lang,
+  { dateStyle: "short", timeStyle: "medium" });
+
 function duration(s) {
   if (s < 0 || s === undefined) return "–";
   if (s < 90) return t("unit.s", { n: Math.round(s) });
@@ -46,7 +49,7 @@ function duration(s) {
 
 async function busy(button, task) {
   button.disabled = true;
-  try { return await task(); } catch (e) { toast(e.message, true); } finally { button.disabled = false; }
+  try { return await task(); } catch (e) { toast(deviceError(e.message), true); } finally { button.disabled = false; }
 }
 
 // Translates the device error messages (kept in English in the firmware).
@@ -59,6 +62,9 @@ const ERRORS = [
   [/dial not configured|set at least the start/, "err.notConfigured"],
   [/search band too narrow/, "err.band"],
   [/no photo yet/, "err.noPhoto"],
+  [/type the MQTT password again/, "err.mqttPass"],
+  [/firmware update in progress/, "err.updating"],
+  [/tank table/, "err.table"],
   [/camera/, "err.camera"],
 ];
 function deviceError(message) {
@@ -154,7 +160,7 @@ function configScene(c) {
 
 const FRAME = { QVGA: [320, 240], VGA: [640, 480], SVGA: [800, 600] };
 const SHOT_KEYS = ["led_intensity", "led_ms", "rotation", "vflip", "hmirror", "framesize",
-  "cam_brightness", "cam_contrast"];
+  "cam_brightness", "cam_contrast", "exposure_auto", "exposure", "gain"];
 const ORIENT_KEYS = ["rotation", "vflip", "hmirror", "framesize"];
 
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
@@ -196,6 +202,7 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   $$("#tabs button").forEach((x) => x.classList.toggle("active", x === b));
   $$(".tab").forEach((t) => t.classList.toggle("active", t.id === `tab-${b.dataset.tab}`));
   if (b.dataset.tab === "dial") dial.enter();
+  if (b.dataset.tab === "system") loadLog();
 }));
 
 // ---------- reading tab ----------
@@ -296,7 +303,7 @@ function renderFailures() {
   $$("#r-failure-list .card").forEach((card, i) => {
     const f = failures.list[i];
     card.querySelector("p").textContent = deviceError(f.error);
-    const parts = [t("r.failureAge", { age: duration(f.age_s + elapsed) })];
+    const parts = [f.at ? dateTime(f.at) : t("r.failureAge", { age: duration(f.age_s + elapsed) })];
     if (f.level !== null && f.level !== undefined) parts.push(t("r.failureRead", { value: num(f.level), unit: f.unit }));
     if (!f.photo) parts.push(t("r.noPhoto"));
     card.querySelector("small").textContent = parts.join(" · ");
@@ -607,8 +614,12 @@ $("#d-shot").addEventListener("change", () => dial.takePhoto());
 $("#d-shot").addEventListener("input", showLed);
 $("#d-shot").addEventListener("submit", (e) => e.preventDefault());
 function showLed() {
-  const v = Number($("#d-shot").led_intensity.value);
+  const form = $("#d-shot");
+  const v = Number(form.led_intensity.value);
   $("#d-led-value").textContent = v ? `${Math.round(v / 2.55)} %` : t("d.off");
+  $("#d-exposure-value").textContent = form.exposure.value;
+  $("#d-gain-value").textContent = form.gain.value;
+  $$("#d-shot .manual-exposure").forEach((el) => el.classList.toggle("off", form.exposure_auto.checked));
 }
 $("#d-test").addEventListener("click", (e) => busy(e.target, () => dial.test()));
 $("#d-save").addEventListener("click", (e) => busy(e.target, () => dial.save()));
@@ -646,7 +657,7 @@ function read(form) {
 }
 
 function renderForms() {
-  fill($("#f-tank"), cfg);
+  fill($("#f-tank"), { ...cfg, tank_table_text: (cfg.tank_table || []).map((r) => r.join(" ")).join("\n") });
   fill($("#f-camera"), { ...cfg, interval_min: Math.round(cfg.interval_s / 60) });
   const net = $("#f-network");
   fill(net, { ...cfg, wifi_pass: "", mqtt_pass: "", ui_password: "", ui_password_clear: false,
@@ -658,13 +669,73 @@ function renderForms() {
   renderCapacity();
 }
 
+// Level -> litres rows typed one per line: "40 520", "40;520", "40,5 520".
+function parseTable(text) {
+  const rows = [];
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("#")) continue;
+    let cells = line.split(/[\s;]+/);
+    if (cells.length === 1) cells = line.split(",");
+    const row = cells.map((c) => Number(c.replace(",", ".")));
+    const prev = rows[rows.length - 1];
+    if (row.length !== 2 || row.some((x) => !Number.isFinite(x)) || (prev && (row[0] <= prev[0] || row[1] < prev[1]))) {
+      return { error: i + 1 };
+    }
+    rows.push(row);
+  }
+  return { rows };
+}
+
+// Same formulas as gauge::Tank in the firmware.
+function tankModel(v, table) {
+  const L = v.tank_length_cm, W = v.tank_width_cm, H = v.tank_height_cm, D = v.tank_diameter_cm;
+  const shape = v.tank_shape;
+  const ready = shape === "box" ? L > 0 && W > 0 : shape === "hcyl" ? L > 0 && D > 0
+    : shape === "vcyl" ? D > 0 : table.length >= 2;
+  const full = shape === "hcyl" ? D : shape === "table" ? (table.length ? table[table.length - 1][0] : 0) : H;
+  const volume = (level) => {
+    if (full > 0) level = Math.min(level, full);
+    level = Math.max(level, shape === "table" ? table[0][0] : 0);
+    if (shape === "box") return level * L * W / 1000;
+    if (shape === "vcyl") return level * Math.PI * D * D / 4 / 1000;
+    if (shape === "hcyl") {
+      const r = D / 2;
+      return (r * r * Math.acos((r - level) / r) - (r - level) * Math.sqrt(Math.max(0, 2 * r * level - level * level))) * L / 1000;
+    }
+    for (let i = 1; i < table.length; i++) {
+      const [a, b] = [table[i - 1], table[i]];
+      if (level <= b[0]) return a[1] + (b[1] - a[1]) * (level - a[0]) / (b[0] - a[0]);
+    }
+    return table[table.length - 1][1];
+  };
+  return { ready, full, volume, capacity: ready && full > 0 ? volume(full) : 0 };
+}
+
 function renderCapacity() {
-  const v = read($("#f-tank"));
-  const cap = v.tank_length_cm * v.tank_width_cm * v.tank_height_cm / 1000;
-  const perCm = v.tank_length_cm * v.tank_width_cm / 1000;
-  $("#t-capacity").textContent = cap > 0
-    ? t("t.capacity", { cap: num(cap, 0), perCm: num(perCm, 2) })
-    : perCm > 0 ? t("t.perCm", { perCm: num(perCm, 2) }) : "";
+  const form = $("#f-tank");
+  const v = read(form);
+  form.querySelectorAll("[data-shapes]").forEach((el) => {
+    el.hidden = !el.dataset.shapes.split(" ").includes(v.tank_shape);
+  });
+  $("#t-shape-help").textContent = t(`t.shape.${v.tank_shape}.help`);
+  const parsed = parseTable(v.tank_table_text);
+  const line = $("#t-capacity");
+  if (v.tank_shape === "table" && parsed.error) {
+    line.textContent = t("t.table.invalid", { n: parsed.error });
+    return;
+  }
+  const tank = tankModel(v, parsed.rows || []);
+  if (!tank.ready) {
+    line.textContent = "";
+  } else if (tank.capacity > 0) {
+    const extra = v.tank_shape === "box" ? t("t.perCm", { perCm: num(tank.volume(1), 2) })
+      : t("t.half", { level: num(tank.full / 2), unit: cfg?.unit || "cm", v: num(tank.volume(tank.full / 2), 0) });
+    line.textContent = `${t("t.capacity", { cap: num(tank.capacity, 0) })} · ${extra}`;
+  } else {
+    line.textContent = t("t.perCm", { perCm: num(tank.volume(1), 2) });
+  }
 }
 $("#f-tank").addEventListener("input", renderCapacity);
 
@@ -679,7 +750,13 @@ async function saveForm(e, transform = (v) => v) {
   });
 }
 
-$("#f-tank").addEventListener("submit", (e) => saveForm(e));
+$("#f-tank").addEventListener("submit", (e) => saveForm(e, (v) => {
+  const parsed = parseTable(v.tank_table_text);
+  delete v.tank_table_text;
+  if (parsed.error && v.tank_shape === "table") throw new Error(t("t.table.invalid", { n: parsed.error }));
+  if (parsed.rows) v.tank_table = parsed.rows;
+  return v;
+}));
 $("#f-camera").addEventListener("submit", (e) => saveForm(e, (v) => {
   v.interval_s = Math.max(1, v.interval_min) * 60;
   delete v.interval_min;
@@ -704,19 +781,111 @@ $("#n-scan").addEventListener("click", (e) => busy(e.target, async () => {
 
 // ---------- system tab ----------
 
+// Notes the firmware leaves before restarting itself (kept in English).
+const NOTES = [
+  [/^the camera does not start/, "note.camera"],
+  [/^the camera stopped delivering/, "note.frames"],
+  [/^no Wi-Fi for 1 h/, "note.wifi"],
+  [/^MQTT server unreachable/, "note.mqtt"],
+  [/^the new firmware cannot join Wi-Fi/, "note.rollback"],
+  [/^asked from the interface/, "note.asked"],
+  [/^update to (\S+) installed/, "note.updated"],
+];
+function restartNote(note) {
+  for (const [re, key] of NOTES) {
+    const m = note.match(re);
+    if (m) return t(key, { v: m[1] });
+  }
+  return note;
+}
+
 function renderSystem() {
   const s = status;
   const kb = t("s.kb");
+  const reason = t(`reset.${s.reset_reason}`);
   const rows = [
     [t("s.version"), s.version], [t("s.id"), s.id], [t("s.uptime"), duration(s.uptime_s)],
+    [t("s.reset"), s.restart_note ? t("s.resetWithNote", { reason, note: restartNote(s.restart_note) }) : reason],
+    [t("s.clock"), s.time ? dateTime(s.time) : t("s.noClock")],
     [t("s.wifi"), s.wifi.connected ? `${s.wifi.ssid} (${s.wifi.rssi} dBm), ${s.wifi.ip}` : t("s.disconnected")],
     [t("s.ap"), s.wifi.ap ? t("s.apOn", { name: s.wifi.hostname, ip: s.wifi.ap_ip }) : t("s.closed")],
     [t("s.mqtt"), t(s.mqtt.connected ? "s.connected" : s.mqtt.configured ? "s.disconnected" : "s.notSet")],
     [t("s.photo"), s.photo ? `${s.photo.width} × ${s.photo.height}, ${num(s.photo.bytes / 1024, 0)} ${kb}` : t("s.none")],
-    [t("s.memory"), `${num(s.heap_free / 1024, 0)} ${kb} + ${num(s.psram_free / 1024, 0)} ${kb} PSRAM`],
+    [t("s.memory"), `${num(s.heap_free / 1024, 0)} ${kb} (${t("s.min")} ${num(s.heap_min / 1024, 0)} ${kb}) + ${num(s.psram_free / 1024, 0)} ${kb} PSRAM`],
   ];
   $("#s-info").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${String(v).replace(/</g, "&lt;")}</dd>`).join("");
+  renderUpdate();
 }
+
+let installing = null;  // version being installed: reload once it runs
+
+function renderUpdate() {
+  const u = status.update;
+  if (!u) return;
+  if (installing && status.version !== installing.from) {
+    installing = null;
+    toast(t("s.updated"));
+    setTimeout(() => location.reload(), 1500);
+  }
+  const line = $("#s-release");
+  const age = duration(u.checked_s);
+  let text;
+  let kind = "";
+  if (u.busy && u.progress !== undefined) text = t("s.installing", { v: u.latest, p: u.progress });
+  else if (u.busy) text = t("s.checking");
+  else if (u.install_error) { text = t("s.installFailed", { error: u.install_error }); kind = "err"; }
+  else if (u.error) { text = t("s.checkFailed", { error: u.error }); kind = "err"; }
+  else if (u.checked_s < 0) text = t("s.neverChecked");
+  else if (u.available) { text = t("s.available", { v: u.latest, age }); kind = "warn"; }
+  else if (!u.latest) text = t("s.noRelease", { age });
+  else text = t("s.upToDate", { v: u.latest, age });
+  if (u.pending_verify) text += ` ${t("s.pendingVerify")}`;
+  line.textContent = text;
+  line.className = `status ${kind}`;
+  const install = $("#s-install");
+  install.hidden = !u.available || u.busy;
+  install.textContent = t("s.install", { v: u.latest });
+  const bar = $("#s-ota-progress");
+  bar.hidden = !(u.busy && u.progress !== undefined);
+  bar.value = u.progress || 0;
+}
+
+$("#s-check").addEventListener("click", (e) => busy(e.target, async () => {
+  await post("/api/update/check");
+  for (const wait of [3000, 4000, 6000]) {
+    await new Promise((r) => setTimeout(r, wait));
+    await refresh();
+    if (status.update && !status.update.busy) break;
+  }
+}));
+
+$("#s-install").addEventListener("click", (e) => busy(e.target, async () => {
+  const v = status.update.latest;
+  if (!confirm(t("s.installConfirm", { v }))) return;
+  await post("/api/update/install");
+  installing = { from: status.version };
+  toast(t("s.installStarted", { v }));
+  await refresh();
+}));
+
+function logStamp(line) {
+  if (line.at) return dateTime(line.at);
+  const s = line.t;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `+${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+}
+
+async function loadLog() {
+  try {
+    const lines = await api("/api/log");
+    const pre = $("#s-log");
+    pre.textContent = lines.map((l) => `${logStamp(l)}  ${l.msg}`).join("\n") || t("s.logEmpty");
+    pre.scrollTop = pre.scrollHeight;
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+$("#s-log-refresh").addEventListener("click", (e) => busy(e.target, loadLog));
 
 $("#s-update").addEventListener("click", (e) => {
   const file = $("#s-file").files[0];
@@ -784,6 +953,7 @@ function rerender() {
   if (dial.draft) dial.renderTable();
   showLed();
   if (cfg) renderForms();
+  loadLog();
   if (status) { renderStatus(); renderSystem(); }
 }
 

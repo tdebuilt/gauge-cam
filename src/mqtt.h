@@ -11,7 +11,13 @@ void mqttBegin(const String& device_id);
 void mqttReconfigure();
 void mqttLoop();
 bool mqttConnected();
-void mqttPublishReading(const Reading& attempt, const Reading& good);
+// Publishes the status and the diagnostics; the values only when `new_good`
+// (or an earlier new reading has not reached the broker yet).
+void mqttPublishReading(const Reading& attempt, const Reading& good, bool new_good);
+// State of the Home Assistant firmware update entity.
+void mqttPublishUpdate();
 void mqttPublishPhoto();
+// True once connected since boot.
+bool mqttEverConnected();
 // Set when Home Assistant pressed the "read now" button.
 bool mqttTakeReadRequest();

@@ -4,14 +4,17 @@
 #include <Update.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 #include "app.h"
 #include "camera.h"
 #include "config.h"
+#include "diag.h"
 #include "generated/version.h"
 #include "generated/web_assets.h"
 #include "mqtt.h"
 #include "net.h"
+#include "ota.h"
 #include "reader.h"
 
 namespace {
@@ -47,6 +50,13 @@ bool parseBody(JsonDocument& doc) {
   return true;
 }
 
+// Photos and readings wait while a firmware update downloads.
+bool refuseWhileUpdating() {
+  if (!otaBusy()) return false;
+  sendError(503, "firmware update in progress");
+  return true;
+}
+
 void serveAsset(const WebAsset& a) {
   server.sendHeader("Content-Encoding", "gzip");
   server.sendHeader("Cache-Control", "no-cache");
@@ -61,7 +71,12 @@ void handleStatus() {
   doc["version"] = GAUGECAM_VERSION;
   doc["uptime_s"] = millis() / 1000;
   doc["heap_free"] = ESP.getFreeHeap();
+  doc["heap_min"] = ESP.getMinFreeHeap();
   doc["psram_free"] = ESP.getFreePsram();
+  doc["time"] = epochNow();
+  doc["reset_reason"] = resetReasonId();
+  if (previousRestartNote().length()) doc["restart_note"] = previousRestartNote();
+  otaToJson(doc["update"].to<JsonObject>());
   netToJson(doc["wifi"].to<JsonObject>());
   doc["mqtt"]["configured"] = config.mqtt_host.length() > 0;
   doc["mqtt"]["connected"] = mqttConnected();
@@ -107,7 +122,7 @@ void handlePostConfig() {
 // Takes a photo. A JSON body holds unsaved capture settings (LED, rotation,
 // flips, resolution...) to try them before saving.
 void handleCapture() {
-  if (!authorized()) return;
+  if (!authorized() || refuseWhileUpdating()) return;
   Config draft = config;
   String error;
   const bool has_draft = server.arg("plain").length() > 0;
@@ -124,7 +139,7 @@ void handleCapture() {
 }
 
 void handleRead() {
-  if (!authorized()) return;
+  if (!authorized() || refuseWhileUpdating()) return;
   const bool fresh = server.arg("photo") != "0";
   JsonDocument doc;
   readingToJson(appRead(fresh), config, doc.to<JsonObject>());
@@ -182,6 +197,31 @@ void handleScan() {
   sendJson(200, doc);
 }
 
+void handleLog() {
+  if (!authorized()) return;
+  JsonDocument doc;
+  logToJson(doc.to<JsonArray>());
+  sendJson(200, doc);
+}
+
+void handleUpdateCheck() {
+  if (!authorized()) return;
+  otaRequestCheck();
+  JsonDocument doc;
+  doc["checking"] = true;
+  sendJson(200, doc);
+}
+
+// Installs the latest GitHub release; runs from the main loop.
+void handleUpdateInstall() {
+  if (!authorized() || refuseWhileUpdating()) return;
+  logMsg("Update requested from the interface");
+  otaRequestInstall();
+  JsonDocument doc;
+  doc["installing"] = true;
+  sendJson(200, doc);
+}
+
 void handleRestart() {
   if (!authorized()) return;
   JsonDocument doc;
@@ -208,9 +248,16 @@ void handleUpload() {
     return;
   }
   HTTPUpload& up = server.upload();
+  esp_task_wdt_reset();  // the whole upload runs inside one call of the loop
   if (up.status == UPLOAD_FILE_START) {
     upload_error = "";
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) upload_error = Update.errorString();
+    if (otaBusy()) {
+      upload_error = "firmware update in progress";
+    } else if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+      upload_error = Update.errorString();
+    } else {
+      logMsg("Firmware upload started");
+    }
   } else if (up.status == UPLOAD_FILE_WRITE && upload_error.isEmpty()) {
     if (Update.write(up.buf, up.currentSize) != up.currentSize) upload_error = Update.errorString();
   } else if (up.status == UPLOAD_FILE_END && upload_error.isEmpty()) {
@@ -257,6 +304,9 @@ void webBegin() {
   server.on("/api/failure.jpg", HTTP_GET, handleFailureImage);
   server.on("/api/wifi/scan", HTTP_GET, handleScan);
   server.on("/api/restart", HTTP_POST, handleRestart);
+  server.on("/api/log", HTTP_GET, handleLog);
+  server.on("/api/update/check", HTTP_POST, handleUpdateCheck);
+  server.on("/api/update/install", HTTP_POST, handleUpdateInstall);
   server.on("/api/update", HTTP_POST, handleUploadDone, handleUpload);
   server.onNotFound(handleNotFound);
   server.begin();

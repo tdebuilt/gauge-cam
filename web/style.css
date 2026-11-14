@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root {
   --bg: #f4f5f7; --fg: #1c2330; --muted: #677085; --card: #fff; --line: #d9dde5;
   --accent: #1f6feb; --ok: #1a7f37; --warn: #b35900; --err: #c62828;
@@ -23,7 +24,7 @@ button, .button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.active { outline: 2px solid var(--accent); }
 button:disabled { opacity: .5; cursor: wait; }
-input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+input, select, textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
 input[type=checkbox] { width: auto; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
@@ -82,3 +83,7 @@ dl.info dd { margin: 0; font-variant-numeric: tabular-nums; }
 .failures .card p { margin: 0; font-size: .9rem; }
 #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; max-width: 90vw; }
 #toast.err { background: var(--err); color: #fff; }
+textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.shot .manual-exposure.off { display: none; }
+pre.log { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  max-height: 360px; overflow: auto; font-size: .8rem; line-height: 1.45; white-space: pre-wrap; }

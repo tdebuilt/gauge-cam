@@ -4,7 +4,9 @@
 #include <WiFi.h>
 
 #include "camera.h"
+#include "diag.h"
 #include "generated/version.h"
+#include "ota.h"
 
 namespace {
 
@@ -16,6 +18,9 @@ bool discovery_due = true;
 String announced_prefix;  // discovery prefix the entities were published under
 String ha_status_topic;  // <discovery prefix>/status, Home Assistant's birth message
 bool read_requested = false;
+bool state_pending = false;  // a new successful reading waits for the broker
+bool mqtt_logged_down = false;
+bool ever_connected = false;
 uint32_t last_attempt_ms = 0;
 
 String topic(const char* leaf) { return base + "/" + leaf; }
@@ -33,6 +38,11 @@ const char* label(const char* key) {
       {"status", "État de la lecture", "Reading status"},
       {"photo", "Photo", "Photo"},
       {"read", "Lire maintenant", "Read now"},
+      {"last_reading", "Dernière lecture", "Last reading"},
+      {"boot", "Dernier démarrage", "Last start"},
+      {"reset_reason", "Cause du dernier redémarrage", "Last restart cause"},
+      {"heap", "Mémoire libre", "Free memory"},
+      {"firmware", "Firmware", "Firmware"},
   };
   for (const Entry& e : kNames) {
     if (strcmp(e.key, key) == 0) return config.lang == "en" ? e.en : e.fr;
@@ -43,6 +53,10 @@ const char* label(const char* key) {
 void onMessage(char* t, uint8_t* payload, unsigned int len) {
   if (topic("cmd") == t && len == 4 && memcmp(payload, "read", 4) == 0) {
     read_requested = true;
+  }
+  if (topic("cmd") == t && len == 7 && memcmp(payload, "install", 7) == 0) {
+    logMsg("Update requested over MQTT");
+    otaRequestInstall();
   }
   // Home Assistant restarted: announce the entities again.
   if (ha_status_topic == t && len == 6 && memcmp(payload, "online", 6) == 0) {
@@ -78,25 +92,33 @@ void publishConfig(const char* component, const char* object, JsonDocument& doc)
   client.publish(t.c_str(), payload.c_str(), true);
 }
 
-void sensor(const char* object, const char* name, const char* value_key,
-            const char* unit, const char* device_class, bool diagnostic,
-            bool enabled = true) {
+struct SensorSpec {
+  const char* object;
+  const char* leaf;  // state topic leaf
+  const char* value_key;  // JSON key, nullptr: the payload itself
+  const char* unit;
+  const char* device_class;
+  bool diagnostic;
+  bool measurement;  // state_class measurement
+  bool expires;  // unavailable after three missed readings
+};
+
+void sensor(const SensorSpec& spec, bool enabled = true, bool enabled_by_default = true) {
   JsonDocument doc;
   if (!enabled) {
-    publishConfig("sensor", object, doc);
+    publishConfig("sensor", spec.object, doc);
     return;
   }
-  doc["name"] = name;
-  doc["state_topic"] = topic("state");
-  doc["value_template"] = String("{{ value_json.") + value_key + " }}";
-  if (unit) doc["unit_of_measurement"] = unit;
-  if (device_class) doc["device_class"] = device_class;
-  if (diagnostic) {
-    doc["entity_category"] = "diagnostic";
-  } else {
-    doc["state_class"] = "measurement";
-  }
-  publishConfig("sensor", object, doc);
+  doc["name"] = label(spec.object);
+  doc["state_topic"] = topic(spec.leaf);
+  if (spec.value_key) doc["value_template"] = String("{{ value_json.") + spec.value_key + " | default(None) }}";
+  if (spec.unit) doc["unit_of_measurement"] = spec.unit;
+  if (spec.device_class) doc["device_class"] = spec.device_class;
+  if (spec.diagnostic) doc["entity_category"] = "diagnostic";
+  if (spec.measurement) doc["state_class"] = "measurement";
+  if (spec.expires) doc["expire_after"] = config.interval_s * 3 + 120;
+  if (!enabled_by_default) doc["enabled_by_default"] = false;
+  publishConfig("sensor", spec.object, doc);
 }
 
 // Every entity this device may announce.
@@ -104,9 +126,10 @@ constexpr struct {
   const char* component;
   const char* object;
 } kEntities[] = {
-    {"sensor", "level"}, {"sensor", "volume"}, {"sensor", "percent"}, {"sensor", "angle"},
-    {"sensor", "contrast"}, {"sensor", "rssi"}, {"sensor", "status"}, {"image", "photo"},
-    {"button", "read"},
+    {"sensor", "level"}, {"sensor", "volume"}, {"sensor", "percent"}, {"sensor", "last_reading"},
+    {"sensor", "angle"}, {"sensor", "contrast"}, {"sensor", "rssi"}, {"sensor", "status"},
+    {"sensor", "boot"}, {"sensor", "reset_reason"}, {"sensor", "heap"}, {"image", "photo"},
+    {"button", "read"}, {"update", "firmware"},
 };
 
 // Empty retained configs: Home Assistant deletes the entities.
@@ -126,20 +149,19 @@ void publishDiscovery() {
   }
   announced_prefix = config.discovery_prefix;
   const bool cm = config.unit == "cm";
-  sensor("level", label("level"), "level", config.unit.c_str(), cm ? "distance" : nullptr, false);
-  sensor("volume", label("volume"), "volume_l", "L", "volume_storage", false, config.tankReady());
-  sensor("percent", label("percent"), "percent", "%", nullptr, false, config.tank_height_cm > 0);
-  sensor("angle", label("angle"), "angle", "°", nullptr, true);
-  sensor("contrast", label("contrast"), "contrast", nullptr, nullptr, true);
-  sensor("rssi", label("rssi"), "rssi", "dBm", "signal_strength", true);
-  {
-    JsonDocument doc;
-    doc["name"] = label("status");
-    doc["state_topic"] = topic("status");
-    doc["entity_category"] = "diagnostic";
-    doc["icon"] = "mdi:gauge";
-    publishConfig("sensor", "status", doc);
-  }
+  const gauge::Tank tank = config.tank();
+  sensor({"level", "state", "level", config.unit.c_str(), cm ? "distance" : nullptr, false, true, true});
+  sensor({"volume", "state", "volume_l", "L", "volume_storage", false, true, true}, tank.ready());
+  sensor({"percent", "state", "percent", "%", nullptr, false, true, true},
+         tank.capacity() > 0 || tank.fullLevel() > 0);
+  sensor({"last_reading", "state", "time", nullptr, "timestamp", false, false, false});
+  sensor({"angle", "state", "angle", "°", nullptr, true, false, false});
+  sensor({"contrast", "state", "contrast", nullptr, nullptr, true, false, false});
+  sensor({"rssi", "diag", "rssi", "dBm", "signal_strength", true, false, false});
+  sensor({"status", "status", nullptr, nullptr, nullptr, true, false, false});
+  sensor({"boot", "diag", "boot", nullptr, "timestamp", true, false, false});
+  sensor({"reset_reason", "diag", "reset_reason", nullptr, nullptr, true, false, false});
+  sensor({"heap", "diag", "heap_free", "B", "data_size", true, false, false}, true, false);
   {
     JsonDocument doc;
     doc["name"] = label("photo");
@@ -154,6 +176,48 @@ void publishDiscovery() {
     doc["payload_press"] = "read";
     publishConfig("button", "read", doc);
   }
+  {
+    JsonDocument doc;
+    doc["name"] = label("firmware");
+    doc["state_topic"] = topic("update");
+    doc["command_topic"] = topic("cmd");
+    doc["payload_install"] = "install";
+    doc["device_class"] = "firmware";
+    doc["entity_category"] = "config";
+    publishConfig("update", "firmware", doc);
+  }
+}
+
+void publishDiag() {
+  JsonDocument doc;
+  doc["rssi"] = WiFi.RSSI();
+  static uint32_t boot_epoch = 0;  // computed once, so that it does not drift by a second
+  if (!boot_epoch && epochNow()) boot_epoch = epochNow() - millis() / 1000;
+  if (boot_epoch) doc["boot"] = isoTime(boot_epoch);
+  doc["reset_reason"] = resetReasonLabel();
+  doc["heap_free"] = ESP.getFreeHeap();
+  doc["version"] = GAUGECAM_VERSION;
+  String payload;
+  serializeJson(doc, payload);
+  client.publish(topic("diag").c_str(), payload.c_str(), true);
+}
+
+void publishState(const Reading& good) {
+  JsonDocument doc;
+  auto put = [&doc](const char* key, float v, int decimals) {
+    if (isnan(v)) return;
+    const float scale = powf(10, decimals);
+    doc[key] = roundf(v * scale) / scale;
+  };
+  put("level", good.level, 1);
+  put("volume_l", good.volume_l, 0);
+  put("percent", good.percent, 1);
+  put("angle", good.gauge.needle_angle, 1);
+  put("contrast", good.gauge.contrast, 0);
+  if (good.at_epoch) doc["time"] = isoTime(good.at_epoch);
+  String payload;
+  serializeJson(doc, payload);
+  if (client.publish(topic("state").c_str(), payload.c_str(), true)) state_pending = false;
 }
 
 bool connect() {
@@ -163,8 +227,14 @@ bool connect() {
   const char* user = config.mqtt_user.isEmpty() ? nullptr : config.mqtt_user.c_str();
   const char* pass = config.mqtt_pass.isEmpty() ? nullptr : config.mqtt_pass.c_str();
   if (!client.connect(id.c_str(), user, pass, will.c_str(), 0, true, "offline")) {
+    if (!mqtt_logged_down) logMsg("MQTT: cannot connect to %s:%u (state %d)", config.mqtt_host.c_str(),
+                                  config.mqtt_port, client.state());
+    mqtt_logged_down = true;
     return false;
   }
+  logMsg("MQTT connected to %s:%u", config.mqtt_host.c_str(), config.mqtt_port);
+  ever_connected = true;
+  mqtt_logged_down = false;
   client.publish(will.c_str(), "online", true);
   client.subscribe(topic("cmd").c_str());
   ha_status_topic = config.discovery_prefix + "/status";
@@ -189,11 +259,17 @@ void mqttReconfigure() {
   }
   base = config.mqtt_prefix + "/" + id;
   last_attempt_ms = 0;
+  ever_connected = false;  // a new server proves nothing yet
+  mqtt_logged_down = false;
 }
 
 void mqttLoop() {
   if (!client.connected()) {
     if (last_attempt_ms && millis() - last_attempt_ms < 15000) return;
+    if (last_attempt_ms && !mqtt_logged_down && config.mqtt_host.length()) {
+      logMsg("MQTT connection lost");
+      mqtt_logged_down = true;
+    }
     last_attempt_ms = millis();
     if (!connect()) return;
   }
@@ -201,37 +277,35 @@ void mqttLoop() {
   if (discovery_due) {
     publishDiscovery();
     discovery_due = false;
-    mqttPublishReading(lastAttempt(), lastGood());
+    mqttPublishReading(lastAttempt(), lastGood(), false);
     mqttPublishPhoto();
+    mqttPublishUpdate();
   }
 }
 
 bool mqttConnected() { return client.connected(); }
+bool mqttEverConnected() { return ever_connected; }
 
-void mqttPublishReading(const Reading& attempt, const Reading& good) {
+void mqttPublishReading(const Reading& attempt, const Reading& good, bool new_good) {
+  if (new_good) state_pending = true;
   if (!client.connected()) return;
   if (attempt.at_ms) {
     const String status = attempt.ok ? String("ok") : attempt.error.substring(0, 200);
     client.publish(topic("status").c_str(), status.c_str(), true);
   }
-  if (!good.at_ms) return;  // values stay unknown until a first success
+  // Values are only sent after a new successful reading: Home Assistant shows
+  // them as unavailable once three readings in a row are missing.
+  if (state_pending && good.at_ms) publishState(good);
+  publishDiag();
+}
+
+void mqttPublishUpdate() {
+  if (!client.connected()) return;
   JsonDocument doc;
-  auto put = [&doc](const char* key, float v, int decimals) {
-    if (isnan(v)) return;
-    const float scale = powf(10, decimals);
-    doc[key] = roundf(v * scale) / scale;
-  };
-  put("level", good.level, 1);
-  put("volume_l", good.volume_l, 0);
-  put("percent", good.percent, 1);
-  if (good.ok) {
-    put("angle", good.gauge.needle_angle, 1);
-    put("contrast", good.gauge.contrast, 0);
-  }
-  doc["rssi"] = WiFi.RSSI();
+  otaToHomeAssistant(doc.to<JsonObject>());
   String payload;
   serializeJson(doc, payload);
-  client.publish(topic("state").c_str(), payload.c_str(), true);
+  client.publish(topic("update").c_str(), payload.c_str(), true);
 }
 
 void mqttPublishPhoto() {

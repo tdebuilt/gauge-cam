@@ -1,16 +1,20 @@
 // gauge-cam: reads a needle gauge (oil tank level) with an ESP32-CAM.
 #include <Arduino.h>
 
+#include <esp_task_wdt.h>
+
 #include <algorithm>
 #include <vector>
 
 #include "app.h"
 #include "camera.h"
 #include "config.h"
+#include "diag.h"
 #include "generated/version.h"
 #include "improv.h"
 #include "mqtt.h"
 #include "net.h"
+#include "ota.h"
 #include "reader.h"
 #include "web.h"
 
@@ -24,7 +28,81 @@ gauge::JumpFilter jump_filter;
 constexpr int kConfirmations = 2;  // readings that must agree with a jump
 constexpr uint32_t kRecheckMs = 120000;  // next reading after a suspect one
 
+// Self-healing: the device sits alone in a cellar.
+constexpr uint32_t kWatchdogS = 60;  // the loop must come back within this
+constexpr int kCameraRetries = 3;  // driver restarts before restarting the device
+constexpr uint32_t kCameraRetryMs = 30000;
+constexpr int kCaptureFailures = 3;  // captures in a row without a frame
+constexpr uint8_t kCameraRestarts = 3;  // then stay up to show the error
+constexpr uint32_t kOfflineRestartMs = 3600UL * 1000;  // without Wi-Fi or MQTT
+constexpr uint32_t kNewFirmwareWifiMs = 5UL * 60 * 1000;  // or back to the previous one
+int camera_retries = 0;
+uint32_t last_camera_retry = 0;
+bool camera_gave_up = false;
+uint32_t wifi_down_since = 0;
+uint32_t mqtt_down_since = 0;
+uint32_t wifi_up_since = 0;
+
 void schedule(uint32_t in_ms) { next_read_ms = millis() + in_ms; }
+
+// Restarts for a camera fault, at most kCameraRestarts times since power on
+// so that a dead camera does not hide the web interface behind restarts.
+void cameraRestart(const String& why) {
+  if (cameraRestartCount() >= kCameraRestarts) {
+    if (!camera_gave_up) logMsg("Camera still failing after %u restarts: %s", kCameraRestarts, why.c_str());
+    camera_gave_up = true;
+    return;
+  }
+  setCameraRestartCount(cameraRestartCount() + 1);
+  diagRestart(why);
+}
+
+void healthLoop() {
+  esp_task_wdt_reset();
+  const uint32_t now = millis();
+
+  if (!camera_ok && psramFound() && camera_retries < kCameraRetries && now - last_camera_retry > kCameraRetryMs) {
+    last_camera_retry = now;
+    ++camera_retries;
+    camera_ok = cameraRetry(config);
+    logMsg("Camera start, attempt %d: %s", camera_retries + 1, camera_ok ? "ok" : "failed");
+  }
+  if (!camera_ok && psramFound() && camera_retries >= kCameraRetries) {
+    cameraRestart("the camera does not start");
+  }
+  if (camera_ok && cameraFailuresInARow() >= kCaptureFailures) {
+    cameraRestart("the camera stopped delivering photos");
+  }
+
+  const bool wifi = netConnected();
+  if (wifi) {
+    if (!wifi_up_since) wifi_up_since = now;
+    wifi_down_since = 0;
+  } else {
+    wifi_up_since = 0;
+    if (!wifi_down_since) wifi_down_since = now;
+  }
+  if (!wifi && config.wifi_verified && !netApInUse() && now - wifi_down_since > kOfflineRestartMs) {
+    diagRestart("no Wi-Fi for 1 h");
+  }
+  if (wifi && config.mqtt_host.length() && mqttEverConnected() && !mqttConnected()) {
+    if (!mqtt_down_since) mqtt_down_since = now;
+    if (now - mqtt_down_since > kOfflineRestartMs) diagRestart("MQTT server unreachable for 1 h");
+  } else {
+    mqtt_down_since = 0;
+  }
+
+  // A new firmware is kept once it has run on Wi-Fi for a minute; if it
+  // cannot join Wi-Fi, restarting brings the previous firmware back.
+  if (otaPendingVerify()) {
+    if (wifi && now - wifi_up_since > 60000) otaConfirm("Wi-Fi works");
+    if (!wifi && config.wifi_verified && now > kNewFirmwareWifiMs) {
+      diagRestart("the new firmware cannot join Wi-Fi, back to the previous one");
+    }
+  } else if (now > 60000) {
+    otaConfirm("running");
+  }
+}
 
 bool improvConnect(const String& ssid, const String& pass) { return netConnect(ssid, pass); }
 
@@ -54,6 +132,7 @@ Reading readSamples() {
     if (!appCapture(config, error)) {
       failure = Reading();
       failure.at_ms = millis();
+      failure.at_epoch = epochNow();
       failure.error = error;
       if (!camera_ok) break;
       continue;
@@ -96,17 +175,18 @@ Reading appRead(bool fresh_photo) {
   Reading r = fresh_photo ? readSamples() : readPhoto(config);
   applyJumpFilter(r);
   storeReading(r);
+  if (r.ok && camera_ok) setCameraRestartCount(0);
   if (!r.ok && config.dialReady()) {
     const Photo& p = lastPhoto();
     const bool photo_of_reading = p.size && (!fresh_photo || p.taken_ms >= start);
     keepFailure(r, photo_of_reading ? p.jpeg : nullptr, photo_of_reading ? p.size : 0);
   }
   if (r.ok) {
-    Serial.printf("Reading: %.1f %s\n", r.level, config.unit.c_str());
+    logMsg("Reading: %.1f %s", r.level, config.unit.c_str());
   } else {
-    Serial.printf("Reading failed: %s\n", r.error.c_str());
+    logMsg("Reading refused: %s", r.error.c_str());
   }
-  mqttPublishReading(lastAttempt(), lastGood());
+  mqttPublishReading(lastAttempt(), lastGood(), r.ok);
   if (fresh_photo) mqttPublishPhoto();
   return r;
 }
@@ -114,12 +194,17 @@ Reading appRead(bool fresh_photo) {
 void appConfigChanged(bool wifi_changed) {
   if (camera_ok) cameraApply(config);
   jump_filter.reset();  // the calibration or the offset may have moved the level
+  clockBegin(config.ntp_server);
   mqttReconfigure();
   schedule(5000);
   if (wifi_changed) appRestartSoon();
 }
 
-void appRestartSoon() { restart_at_ms = millis() + 1500; }
+void appRestartSoon() {
+  // Asked for by the user: the running firmware is fine, keep it.
+  otaConfirm("restart requested");
+  restart_at_ms = millis() + 1500;
+}
 
 uint32_t appNextReadInS() {
   const int32_t left = static_cast<int32_t>(next_read_ms - millis());
@@ -128,15 +213,21 @@ uint32_t appNextReadInS() {
 
 void setup() {
   Serial.begin(115200);
+  diagBegin();
+  esp_task_wdt_init(kWatchdogS, true);
+  esp_task_wdt_add(nullptr);
   const uint64_t mac = ESP.getEfuseMac();
   char id[20];
   snprintf(id, sizeof id, "gauge-cam-%06x", static_cast<unsigned>(mac >> 24) & 0xFFFFFF);
   device_id = id;
-  Serial.printf("\ngauge-cam %s (%s)\n", GAUGECAM_VERSION, device_id.c_str());
+  if (!config.load()) logMsg("No saved configuration, using defaults");
+  logMsg("gauge-cam %s (%s), started by: %s", GAUGECAM_VERSION, device_id.c_str(), resetReasonId());
+  if (previousRestartNote().length()) logMsg("Previous restart: %s", previousRestartNote().c_str());
+  otaBegin();
 
-  if (!config.load()) Serial.println("No saved configuration, using defaults");
+  if (!psramFound()) logMsg("No PSRAM: this board cannot take photos");
   camera_ok = psramFound() && cameraBegin(config);
-  if (!camera_ok) Serial.println("Camera or PSRAM initialisation failed");
+  if (!camera_ok) logMsg("Camera start failed");
 
   improvBegin("gauge-cam", GAUGECAM_VERSION, device_id, improvConnect, netUrl);
   netBegin(device_id);
@@ -146,10 +237,12 @@ void setup() {
 }
 
 void loop() {
+  healthLoop();
   improvLoop();
   netLoop();
   webLoop();
   mqttLoop();
+  otaLoop();
 
   if (mqttTakeReadRequest()) next_read_ms = millis();
   if (static_cast<int32_t>(millis() - next_read_ms) >= 0) {
@@ -161,6 +254,6 @@ void loop() {
       if (appCapture(config, error)) mqttPublishPhoto();  // helps the first set-up
     }
   }
-  if (restart_at_ms && static_cast<int32_t>(millis() - restart_at_ms) >= 0) ESP.restart();
+  if (restart_at_ms && static_cast<int32_t>(millis() - restart_at_ms) >= 0) diagRestart("asked from the interface");
   delay(2);
 }

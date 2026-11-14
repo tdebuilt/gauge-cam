@@ -30,6 +30,8 @@ struct Config {
   String mqtt_prefix = "gauge-cam";
   String discovery_prefix = "homeassistant";
   bool ha_discovery = true;
+  String ntp_server = "pool.ntp.org";  // empty: no clock (no timestamps)
+  bool update_check = true;  // daily look for a new GitHub release
 
   // Capture
   uint32_t interval_s = 3600;
@@ -41,6 +43,10 @@ struct Config {
   uint16_t led_ms = 400;
   int8_t cam_brightness = 0;  // -2..2
   int8_t cam_contrast = 0;  // -2..2
+  // Automatic exposure and gain, or fixed values for identical photos.
+  bool exposure_auto = true;
+  uint16_t exposure = 300;  // 0..1200 (sensor AEC value)
+  uint8_t gain = 0;  // 0..30
   uint8_t jpeg_quality = 10;  // 4 (best) .. 63
 
   // Dial, in full-image pixel coordinates
@@ -54,14 +60,19 @@ struct Config {
   uint8_t samples = 3;  // photos per scheduled reading, the median is kept
   float max_jump = 5;  // larger level change must be confirmed (0 = off)
 
-  // Tank (rectangular), inner dimensions in cm
+  // Tank: box, hcyl (horizontal cylinder), vcyl (vertical cylinder) or
+  // table (level -> litres); inner dimensions in cm
+  String tank_shape = "box";
   float tank_length_cm = 0;
   float tank_width_cm = 0;
   float tank_height_cm = 0;
+  float tank_diameter_cm = 0;
+  std::vector<std::pair<float, float>> tank_table;
   float level_offset_cm = 0;  // level when the gauge reads 0
 
   bool dialReady() const { return pivot_x >= 0 && points.size() >= 2; }
-  bool tankReady() const { return tank_length_cm > 0 && tank_width_cm > 0; }
+  gauge::Tank tank() const;
+  bool tankReady() const { return tank().ready(); }
   gauge::Settings gaugeSettings() const;
 
   // Secrets are never sent back: the UI only learns whether they are set.

@@ -20,4 +20,8 @@ void cameraApply(const Config& cfg);
 // cfg.rotation, as lastPhoto().
 bool cameraCapture(const Config& cfg, String& error);
 const Photo& lastPhoto();
+// Releases the driver and initialises it again (after a failed start).
+bool cameraRetry(const Config& cfg);
+// Captures in a row where the sensor delivered no frame.
+int cameraFailuresInARow();
 void ledSet(uint8_t intensity);

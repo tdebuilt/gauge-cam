@@ -12,10 +12,11 @@ struct Reading {
   String error;
   gauge::Result gauge;
   float level = NAN;  // gauge value plus offset, in the configured unit
-  float volume_l = NAN;  // rectangular tank only
+  float volume_l = NAN;  // when the tank is described
   float percent = NAN;
   bool suspect = false;  // read fine but held back by the jump filter
   uint32_t at_ms = 0;
+  uint32_t at_epoch = 0;  // 0 while the clock is not set
 };
 
 // A refused reading kept with its photo, to see what went wrong.

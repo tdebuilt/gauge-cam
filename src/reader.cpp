@@ -3,6 +3,7 @@
 #include <img_converters.h>
 
 #include "camera.h"
+#include "diag.h"
 
 namespace {
 
@@ -41,6 +42,7 @@ void putNumber(JsonObject out, const char* key, float v, int decimals) {
 Reading readPhoto(const Config& cfg) {
   Reading r;
   r.at_ms = millis();
+  r.at_epoch = epochNow();
   const Photo& p = lastPhoto();
   if (!p.size) {
     r.error = "no photo yet";
@@ -64,10 +66,9 @@ Reading readPhoto(const Config& cfg) {
     return r;
   }
   r.level = r.gauge.value + cfg.level_offset_cm;
-  if (cfg.tankReady()) {
-    r.volume_l = r.level * cfg.tank_length_cm * cfg.tank_width_cm / 1000.f;
-  }
-  if (cfg.tank_height_cm > 0) r.percent = 100.f * r.level / cfg.tank_height_cm;
+  const gauge::Tank tank = cfg.tank();
+  r.volume_l = tank.volume(r.level);
+  r.percent = tank.percent(r.level);
   r.ok = true;
   return r;
 }
@@ -77,6 +78,7 @@ void readingToJson(const Reading& r, const Config& cfg, JsonObject out) {
   if (r.error.length()) out["error"] = r.error;
   if (r.suspect) out["suspect"] = true;
   out["age_s"] = r.at_ms ? (millis() - r.at_ms) / 1000 : -1;
+  if (r.at_epoch) out["at"] = r.at_epoch;
   putNumber(out, "level", r.level, 1);
   out["unit"] = cfg.unit;
   putNumber(out, "volume_l", r.volume_l, 0);

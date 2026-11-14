@@ -10,5 +10,7 @@ void netLoop();
 bool netConnect(const String& ssid, const String& pass);
 bool netConnected();
 bool netApActive();
+// Someone is connected to the fallback access point.
+bool netApInUse();
 String netUrl();
 void netToJson(JsonObject out);

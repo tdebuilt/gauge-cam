@@ -16,6 +16,7 @@ constexpr int kLedChannel = 7;  // LEDC channel 0 drives the camera clock
 
 Photo photo;
 size_t photo_capacity = 0;
+int failures_in_a_row = 0;  // frames the sensor did not deliver
 
 framesize_t frameSize(const String& name) {
   if (name == "QVGA") return FRAMESIZE_QVGA;
@@ -149,7 +150,20 @@ void cameraApply(const Config& cfg) {
   s->set_hmirror(s, cfg.hmirror);
   s->set_brightness(s, cfg.cam_brightness);
   s->set_contrast(s, cfg.cam_contrast);
+  s->set_exposure_ctrl(s, cfg.exposure_auto);
+  s->set_gain_ctrl(s, cfg.exposure_auto);
+  if (!cfg.exposure_auto) {
+    s->set_aec_value(s, cfg.exposure);
+    s->set_agc_gain(s, cfg.gain);
+  }
 }
+
+bool cameraRetry(const Config& cfg) {
+  esp_camera_deinit();
+  return cameraBegin(cfg);
+}
+
+int cameraFailuresInARow() { return failures_in_a_row; }
 
 bool cameraCapture(const Config& cfg, String& error) {
   if (cfg.led_intensity) {
@@ -164,9 +178,11 @@ bool cameraCapture(const Config& cfg, String& error) {
   camera_fb_t* fb = esp_camera_fb_get();
   ledSet(0);
   if (!fb) {
+    ++failures_in_a_row;
     error = "camera capture failed";
     return false;
   }
+  failures_in_a_row = 0;
   if (cfg.rotation) return keepRotated(fb, cfg, error);
   const bool ok = keepJpeg(fb->buf, fb->len, fb->width, fb->height, error);
   esp_camera_fb_return(fb);

@@ -5,6 +5,7 @@
 #include <WiFi.h>
 
 #include "config.h"
+#include "diag.h"
 
 namespace {
 
@@ -30,8 +31,8 @@ void startAp() {
   WiFi.softAP(host.c_str(), open ? nullptr : config.ap_password.c_str());
   dns.start(53, "*", WiFi.softAPIP());
   ap_active = true;
-  Serial.printf("Access point %s (%s) on http://%s/\n", host.c_str(), open ? "open" : "WPA2",
-                WiFi.softAPIP().toString().c_str());
+  logMsg("Access point %s (%s) on http://%s/", host.c_str(), open ? "open" : "WPA2",
+         WiFi.softAPIP().toString().c_str());
 }
 
 void stopAp() {
@@ -39,6 +40,7 @@ void stopAp() {
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
   ap_active = false;
+  logMsg("Access point closed");
 }
 
 }  // namespace
@@ -67,7 +69,9 @@ void netLoop() {
         config.wifi_verified = true;
         config.save();
       }
-      Serial.printf("Wi-Fi connected: http://%s/\n", WiFi.localIP().toString().c_str());
+      logMsg("Wi-Fi connected to %s (%d dBm): http://%s/", config.wifi_ssid.c_str(), WiFi.RSSI(),
+             WiFi.localIP().toString().c_str());
+      clockBegin(config.ntp_server);
       if (!mdns_started && MDNS.begin(host.c_str())) {
         MDNS.addService("http", "tcp", 80);
         mdns_started = true;
@@ -77,6 +81,7 @@ void netLoop() {
     if (ap_active && now - up_since > kApKeepMs) stopAp();
     return;
   }
+  if (up_since) logMsg("Wi-Fi connection lost");
   up_since = 0;
   if (!down_since) down_since = now;
   if (!ap_active && now - down_since > kApAfterMs && now - last_ap_try > kApAfterMs) {
@@ -107,6 +112,7 @@ bool netConnect(const String& ssid, const String& pass) {
 
 bool netConnected() { return WiFi.status() == WL_CONNECTED; }
 bool netApActive() { return ap_active; }
+bool netApInUse() { return ap_active && WiFi.softAPgetStationNum() > 0; }
 
 String netUrl() { return "http://" + WiFi.localIP().toString() + "/"; }
 

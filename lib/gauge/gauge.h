@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace gauge {
@@ -123,5 +124,29 @@ void rotatePoint(float& x, float& y, int width, int height, int degrees);
 // Rotates an interleaved 3-byte-per-pixel image into dst (same size in
 // bytes, must not overlap src). See rotatePoint for the convention.
 void rotateRgb(const uint8_t* src, int width, int height, int degrees, uint8_t* dst);
+
+// Tank volume from the level. Dimensions are inner, in cm; a table maps
+// levels (in the dial unit) to litres, for any other shape.
+enum class TankShape { Box, HorizontalCylinder, VerticalCylinder, Table };
+
+struct Tank {
+  TankShape shape = TankShape::Box;
+  float length_cm = 0;  // box, horizontal cylinder
+  float width_cm = 0;  // box
+  float height_cm = 0;  // box, vertical cylinder (0: unknown for a box)
+  float diameter_cm = 0;  // cylinders
+  std::vector<std::pair<float, float>> table;  // (level, litres), levels increasing
+
+  // True when a volume can be computed.
+  bool ready() const;
+  // Level of a full tank, 0 when unknown.
+  float fullLevel() const;
+  // Litres when full, 0 when unknown.
+  float capacity() const;
+  // Litres at `level`, clamped to the tank; NAN when not ready.
+  float volume(float level) const;
+  // Fill percentage from the volume (or the level), NAN when unknown.
+  float percent(float level) const;
+};
 
 }  // namespace gauge

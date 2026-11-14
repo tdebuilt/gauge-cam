@@ -17,23 +17,40 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
   moyeu et les graduations ; la valeur est interpolée entre les points de calibration voisins, ce
   qui gère les échelles non linéaires (un cadran Afriso n'a aucune graduation entre 0 et 40 cm).
   Les marques colorées (zone rouge) ne sont pas prises pour l'aiguille, et leurs valeurs sont lues.
-- **Cuve parallélépipédique** : volume = niveau × longueur × largeur, remplissage = niveau / hauteur.
+- **Volume de la cuve** pour un parallélépipède, un cylindre couché ou debout, ou toute autre forme
+  par une table de jaugeage niveau → litres ; le remplissage est le volume rapporté à la capacité.
 - **Filtre de plausibilité** : chaque lecture prend 3 photos et garde la médiane ; un niveau qui
   s'écarte de plus de 5 cm (réglable) de la lecture précédente est revérifié 2 minutes plus tard
   et accepté seulement si les 2 lectures suivantes le confirment : un remplissage passe, un reflet
   isolé non. Les 4 dernières lectures refusées restent visibles avec leur photo (onglet Lecture).
 - **LED du flash** allumée avant chaque photo ; lecture refusée si l'aiguille est trop peu
-  contrastée (photo trop sombre), la dernière valeur bonne est gardée.
+  contrastée (photo trop sombre), la dernière valeur bonne est gardée. L'exposition et le gain
+  peuvent être fixés pour que chaque photo soit identique.
 - **Prise de vue réglée à côté de la photo**, comme dans AI-on-the-edge : intensité de la LED,
   rotation (0, 90, 180, 270°, pour une caméra montée de côté), retournements, résolution, luminosité
   et contraste. Chaque changement reprend une photo sans rien enregistrer ; le contour, le centre et
   les points suivent la rotation. La photo est tournée sur l'ESP32 : Home Assistant la reçoit
   à l'endroit.
 - **Home Assistant par découverte MQTT** (désactivable, les entités sont alors retirées) : niveau,
-  volume, remplissage, photo, bouton « Lire maintenant », état de la lecture, angle, contraste et
-  signal Wi-Fi. Annoncées de nouveau à chaque redémarrage de Home Assistant.
+  volume, remplissage, heure de la dernière lecture, photo, bouton « Lire maintenant », mise à jour
+  du firmware et, en diagnostic, état de la lecture, angle, contraste, signal Wi-Fi, dernier
+  démarrage et sa cause, mémoire libre. Annoncées de nouveau à chaque redémarrage de Home
+  Assistant. Niveau, volume et remplissage passent à « indisponible » après trois lectures
+  manquées, au lieu de garder une vieille valeur.
+- **Mise à jour depuis Home Assistant** ou l'onglet Système : l'appareil cherche chaque jour une
+  nouvelle version sur GitHub et l'installe en HTTPS (certificats vérifiés). Un nouveau firmware qui
+  plante, ou qui ne rejoint pas le Wi-Fi en 5 minutes, est remplacé par le précédent au redémarrage.
+- **Fonctionne sans surveillance** : un chien de garde redémarre un programme bloqué ; la caméra est
+  relancée, puis l'appareil redémarre (3 fois au plus depuis la mise sous tension) quand elle
+  échoue ; l'appareil redémarre aussi après 1 h sans Wi-Fi, ou sans le serveur MQTT qu'il avait
+  joint. L'onglet Système garde un journal des 80 derniers événements et dit pourquoi l'appareil a
+  redémarré (plantage, chien de garde, sous-tension…).
+- **Horloge** par un serveur NTP (`pool.ntp.org` par défaut, ou la passerelle) : les lectures, les
+  lectures refusées et le journal sont datés.
 - **Interface web** en français et en anglais (autres langues : `web/i18n.js`), mise à jour du
-  firmware, sauvegarde et restauration de la configuration.
+  firmware, sauvegarde et restauration de la configuration. Les mots de passe ne sont jamais
+  renvoyés, et le mot de passe MQTT enregistré ne sert qu'avec le serveur pour lequel il a été
+  saisi : changer de serveur, de port ou d'utilisateur demande de le ressaisir.
 - **Flash par le navigateur** (Chrome ou Edge) et réglage du Wi-Fi juste après, par USB (Improv).
   Tant que le Wi-Fi n'a jamais fonctionné, l'appareil ouvre aussi un point d'accès ouvert
   `gauge-cam-xxxxxx` avec portail captif. Une fois le Wi-Fi validé, ce point d'accès de secours ne
@@ -46,6 +63,9 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
 - Alimentation 5 V stable (1 A) : les sous-tensions font échouer la caméra ou le Wi-Fi.
 - Caméra fixée **face** au cadran ; la LED suffit dans une cave.
 
+Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`, `github.com` et
+`release-assets.githubusercontent.com` ; NTP (UDP 123) vers le serveur de temps choisi.
+
 ## Installation
 
 1. Ouvre la [page de flash](https://tdelix.github.io/gauge-cam/), branche l'ESP32-CAM-MB et
@@ -56,20 +76,24 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
    l'aiguille, le début et la fin de l'échelle avec leurs valeurs, puis des points intermédiaires
    partout où l'espacement des graduations change, zone rouge comprise. *Tester*, puis
    *Enregistrer*.
-4. Onglet **Cuve** : dimensions intérieures. Onglet **Réseau** : serveur MQTT.
+4. Onglet **Cuve** : forme et dimensions intérieures, ou table de jaugeage. Onglet **Réseau** :
+   serveur MQTT.
 
-Mise à jour ensuite : onglet Système, fichier `gauge-cam.bin` de la
+Mise à jour ensuite : entité *Firmware* dans Home Assistant, onglet Système (*Rechercher une mise
+à jour*), ou à la main avec le fichier `gauge-cam.bin` de la
 [dernière version](https://github.com/tdelix/gauge-cam/releases/latest).
 
 ## MQTT
 
 | Topic | Contenu |
 |---|---|
-| `gauge-cam/<id>/state` | JSON : `level`, `volume_l`, `percent`, `angle`, `contrast`, `rssi` (retenu) |
+| `gauge-cam/<id>/state` | JSON : `level`, `volume_l`, `percent`, `angle`, `contrast`, `time`, envoyé après chaque lecture réussie (retenu) |
+| `gauge-cam/<id>/diag` | JSON : `rssi`, `boot`, `reset_reason`, `heap_free`, `version` (retenu) |
+| `gauge-cam/<id>/update` | état de l'entité de mise à jour du firmware de Home Assistant (retenu) |
 | `gauge-cam/<id>/status` | `ok` ou le message d'erreur de la dernière lecture (retenu) |
 | `gauge-cam/<id>/image` | dernière photo JPEG (retenue) |
 | `gauge-cam/<id>/availability` | `online` / `offline` |
-| `gauge-cam/<id>/cmd` | `read` lance une lecture |
+| `gauge-cam/<id>/cmd` | `read` lance une lecture, `install` installe la dernière version |
 | `homeassistant/status` | `online` (Home Assistant a redémarré) : les entités sont annoncées de nouveau |
 
 ## API HTTP
@@ -77,7 +101,8 @@ Mise à jour ensuite : onglet Système, fichier `gauge-cam.bin` de la
 `GET /api/status`, `GET|POST /api/config`, `POST /api/capture` (corps facultatif : réglages de
 prise de vue non enregistrés), `POST /api/read`,
 `POST /api/test` (lit la dernière photo avec un réglage non enregistré), `GET /api/photo.jpg`,
-`GET /api/failures` et `GET /api/failure.jpg?id=` (lectures refusées),
+`GET /api/failures` et `GET /api/failure.jpg?id=` (lectures refusées), `GET /api/log`,
+`POST /api/update/check` et `POST /api/update/install` (version publiée sur GitHub),
 `GET /api/wifi/scan`, `POST /api/restart`, `POST /api/update` (firmware). Les mots de passe ne
 sont jamais renvoyés. Un mot de passe d'interface (utilisateur `admin`) est possible.
 

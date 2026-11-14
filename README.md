@@ -17,22 +17,36 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
   graduations; the value is interpolated between neighbouring calibration points, which handles
   non-linear scales. Coloured marks (red zone) are not mistaken for the needle, and their values
   are read.
-- **Rectangular tank**: volume = level × length × width, fill = level / height.
+- **Tank volume** for a box, a horizontal or a vertical cylinder, or any other shape through a
+  level → litres gauging table; the fill percentage is the volume over the capacity.
 - **Plausibility filter**: each reading takes 3 photos and keeps the median; a level that jumps
   further than 5 cm (adjustable) from the last one is checked again 2 minutes later and accepted
   only once the next 2 readings agree, so a refill gets through and a stray reflection does not.
   The last 4 refused readings stay visible with their photo in the Reading tab.
 - **Flash LED** lit before each photo; a reading whose needle contrast is too low (dark photo) is
-  rejected and the last good value is kept.
+  rejected and the last good value is kept. Exposure and gain can be fixed so that every photo is
+  the same.
 - **Capture settings next to the photo**, as in AI-on-the-edge: LED intensity, rotation (0, 90,
   180, 270°, for a camera mounted sideways), flips, resolution, brightness and contrast. Each change
   takes a new photo without saving anything; the outline, centre and points follow the rotation.
   The photo is rotated on the ESP32, so Home Assistant gets it upright too.
 - **Home Assistant MQTT discovery** (can be turned off, entities are then removed): level, volume,
-  fill, photo, "read now" button, reading status, needle angle, contrast and Wi-Fi signal. Announced
-  again whenever Home Assistant restarts.
+  fill, time of the last reading, photo, "read now" button, firmware update, and as diagnostics the
+  reading status, needle angle, contrast, Wi-Fi signal, last start and its cause, free memory.
+  Announced again whenever Home Assistant restarts. Level, volume and fill turn unavailable after
+  three missed readings instead of showing an old value.
+- **Updates from Home Assistant** or from the System tab: the device looks for a new GitHub release
+  every day and installs it over HTTPS (certificates checked). A new firmware that crashes, or cannot
+  join Wi-Fi within 5 minutes, is replaced by the previous one at the next restart.
+- **Runs unattended**: a task watchdog restarts a stuck program; the camera is started again, then
+  the device restarts (at most 3 times since power on) when it fails; the device also restarts after
+  1 hour without Wi-Fi, or without the MQTT server it had reached. The System tab keeps a log of the
+  last 80 events and shows why the device last restarted (crash, watchdog, brown-out…).
+- **Clock** from an NTP server (`pool.ntp.org` by default, or the gateway): readings, refused
+  readings and the log are dated.
 - **Web interface** in French and English (more languages: `web/i18n.js`), firmware update,
-  configuration backup and restore.
+  configuration backup and restore. Passwords are never sent back, and the stored MQTT password is
+  only used with the server it was typed for: changing the server, port or user needs it again.
 - **Browser flashing** (Chrome or Edge) with Wi-Fi set-up right after, over USB (Improv). As long as
   Wi-Fi has never worked, the device also opens an open `gauge-cam-xxxxxx` access point with a
   captive portal. Once Wi-Fi works, that fallback access point only opens (after 30 s without
@@ -44,6 +58,9 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
 - Stable 5 V supply (1 A): brown-outs break the camera or Wi-Fi.
 - Camera fixed **facing** the dial; the LED is enough in a cellar.
 
+Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` and
+`release-assets.githubusercontent.com`; NTP (UDP 123) to the chosen time server.
+
 ## Installation
 
 1. Open the [flasher page](https://tdelix.github.io/gauge-cam/), plug in the ESP32-CAM-MB and
@@ -52,20 +69,23 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
 3. **Dial** tab: *New photo*, adjust the light and rotation if needed, then on the image: the dial outline, the needle centre, the start
    and end of the scale with their values, then intermediate points wherever the graduation
    spacing changes, red zone included. *Test*, then *Save*.
-4. **Tank** tab: inner dimensions. **Network** tab: MQTT server.
+4. **Tank** tab: shape and inner dimensions, or the gauging table. **Network** tab: MQTT server.
 
-Later updates: System tab, `gauge-cam.bin` file of the
+Later updates: the *Firmware* entity in Home Assistant, the System tab (*Check for an update*), or
+by hand with the `gauge-cam.bin` file of the
 [latest release](https://github.com/tdelix/gauge-cam/releases/latest).
 
 ## MQTT
 
 | Topic | Content |
 |---|---|
-| `gauge-cam/<id>/state` | JSON: `level`, `volume_l`, `percent`, `angle`, `contrast`, `rssi` (retained) |
+| `gauge-cam/<id>/state` | JSON: `level`, `volume_l`, `percent`, `angle`, `contrast`, `time`, sent after each successful reading (retained) |
+| `gauge-cam/<id>/diag` | JSON: `rssi`, `boot`, `reset_reason`, `heap_free`, `version` (retained) |
+| `gauge-cam/<id>/update` | state of the Home Assistant firmware update entity (retained) |
 | `gauge-cam/<id>/status` | `ok` or the error of the last reading (retained) |
 | `gauge-cam/<id>/image` | last JPEG photo (retained) |
 | `gauge-cam/<id>/availability` | `online` / `offline` |
-| `gauge-cam/<id>/cmd` | `read` triggers a reading |
+| `gauge-cam/<id>/cmd` | `read` triggers a reading, `install` installs the latest release |
 | `homeassistant/status` | `online` (Home Assistant restarted) announces the entities again |
 
 ## HTTP API
@@ -73,7 +93,8 @@ Later updates: System tab, `gauge-cam.bin` file of the
 `GET /api/status`, `GET|POST /api/config`, `POST /api/capture` (optional body: unsaved capture
 settings), `POST /api/read`,
 `POST /api/test` (reads the last photo with unsaved settings), `GET /api/photo.jpg`,
-`GET /api/failures` and `GET /api/failure.jpg?id=` (refused readings),
+`GET /api/failures` and `GET /api/failure.jpg?id=` (refused readings), `GET /api/log`,
+`POST /api/update/check` and `POST /api/update/install` (GitHub release),
 `GET /api/wifi/scan`, `POST /api/restart`, `POST /api/update` (firmware). Passwords are never
 sent back. An interface password (user `admin`) can be set.
 
