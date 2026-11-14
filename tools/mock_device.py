@@ -32,7 +32,7 @@ from oil_dial import draw_oil_dial  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, "web")
 CLI = os.path.join(ROOT, "build", "gauge_cli")
-TYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css"}
+TYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".woff2": "font/woff2"}
 SECRETS = ("wifi_pass", "mqtt_pass", "ui_password", "ap_password")
 
 CONFIG = {

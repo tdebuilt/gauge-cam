@@ -33,8 +33,13 @@ function toast(message, isError = false) {
   toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 6000 : 3000);
 }
 
+// The narrow no-break space French puts between thousands is missing from
+// Gauge Mono, and Chrome would then draw the whole number in a fallback font.
 const num = (v, decimals = 1) => (v === null || v === undefined || Number.isNaN(v))
-  ? "–" : Number(v).toLocaleString(lang, { maximumFractionDigits: decimals });
+  ? "–" : Number(v).toLocaleString(lang, { maximumFractionDigits: decimals }).replace(/\u202f/g, "\u00a0");
+
+// Large figures: a narrower thousands gap than the monospaced space.
+const bigNum = (v, decimals = 1) => num(v, decimals).replace(/\u00a0/g, '<span class="gap"></span>');
 
 const dateTime = (epoch) => new Date(epoch * 1000).toLocaleString(lang,
   { dateStyle: "short", timeStyle: "medium" });
@@ -198,48 +203,123 @@ function mapRect(r, a, b) {
 
 // ---------- tabs ----------
 
-$$("#tabs button").forEach((b) => b.addEventListener("click", () => {
-  $$("#tabs button").forEach((x) => x.classList.toggle("active", x === b));
-  $$(".tab").forEach((t) => t.classList.toggle("active", t.id === `tab-${b.dataset.tab}`));
-  if (b.dataset.tab === "dial") dial.enter();
-  if (b.dataset.tab === "system") loadLog();
-}));
+function showTab(name) {
+  $$("#tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === name));
+  $$(".tab").forEach((s) => s.classList.toggle("on", s.id === `tab-${name}`));
+  if (name === "dial") dial.enter();
+  if (name === "settings" && $("#sub-system").classList.contains("on")) loadLog();
+  scrollTo(0, 0);
+}
+$$("#tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+function showSub(name) {
+  $$("#snav button").forEach((x) => x.classList.toggle("on", x.dataset.sub === name));
+  $$(".sub").forEach((s) => s.classList.toggle("on", s.id === `sub-${name}`));
+  if (name === "system") loadLog();
+}
+$$("#snav button").forEach((b) => b.addEventListener("click", () => showSub(b.dataset.sub)));
 
 // ---------- reading tab ----------
 
 let photoStamp = 0;
 function photoUrl() { return `/api/photo.jpg?t=${photoStamp}`; }
 
+const known = (v) => v !== null && v !== undefined && !Number.isNaN(v);
+const clock = (date) => date.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+
+// Instrument arc of the home page: 240 degrees, red reserve at the start,
+// filled to `percent` (null: empty track).
+function drawGauge(svg, percent) {
+  const c = 150, stroke = 18, r = c - stroke, start = -120, sweep = 240;
+  const p = (a, radius) => at(c, c, a, radius).map((x) => x.toFixed(1)).join(" ");
+  const arc = (a0, a1) => `M${p(a0, r)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${p(a1, r)}`;
+  const path = (d, cls) => `<path d="${d}" class="${cls}" stroke-width="${stroke}" fill="none" stroke-linecap="round"/>`;
+  let ticks = "";
+  for (let i = 0; i <= 10; i++) {
+    const a = start + sweep * i / 10;
+    ticks += `<line x1="${at(c, c, a, r - stroke * 0.9)[0].toFixed(1)}" y1="${at(c, c, a, r - stroke * 0.9)[1].toFixed(1)}"`
+      + ` x2="${at(c, c, a, r - stroke * (i % 5 ? 1.3 : 1.6))[0].toFixed(1)}" y2="${at(c, c, a, r - stroke * (i % 5 ? 1.3 : 1.6))[1].toFixed(1)}"/>`;
+  }
+  const fill = known(percent) ? Math.max(0.5, Math.min(100, percent)) : 0;
+  svg.innerHTML = path(arc(start, start + sweep), "g-track")
+    + (fill ? path(arc(start, start + sweep * fill / 100), "g-val") : "")
+    + path(arc(start, start + sweep * 0.12), "g-red")
+    + `<g class="g-ticks">${ticks}</g>`;
+}
+
+// Fill level of the gauge: the tank's when it is described, else the
+// position of the level on the dial scale.
+function scalePercent(level) {
+  const v = (cfg?.points || []).map((x) => x[2]);
+  if (!known(level) || v.length < 2) return null;
+  const lo = Math.min(...v), hi = Math.max(...v);
+  return hi > lo ? 100 * (level - lo) / (hi - lo) : null;
+}
+
+function setLed(id, state) { $(id).className = `led ${state}`; }
+
+function renderLeds() {
+  const s = status;
+  setLed("#led-wifi", s ? (s.wifi.connected ? "ok" : s.wifi.ap ? "warn" : "err") : "err");
+  setLed("#led-mqtt", s ? (s.mqtt.connected ? "ok" : s.mqtt.configured ? "err" : "") : "");
+  const camError = s?.attempt?.error && /camera/.test(s.attempt.error);
+  setLed("#led-cam", s ? (camError ? "err" : s.photo ? "ok" : "") : "");
+  $("#led-wifi").title = s ? (s.wifi.connected ? `${s.wifi.ssid} (${s.wifi.rssi} dBm)` : t(s.wifi.ap ? "conn.ap" : "s.disconnected")) : t("conn.offline");
+  $("#led-mqtt").title = t(!s ? "conn.offline" : s.mqtt.connected ? "conn.ok" : s.mqtt.configured ? "conn.down" : "conn.none");
+}
+
 function renderStatus() {
   const s = status;
   $("#title").textContent = s.name;
   document.title = s.name;
-  const conn = $("#conn");
-  conn.textContent = t(s.wifi.ap && !s.wifi.connected ? "conn.ap" :
-    s.mqtt.connected ? "conn.ok" : s.mqtt.configured ? "conn.down" : "conn.none");
-  conn.className = "pill " + (s.mqtt.connected ? "ok" : s.mqtt.configured ? "err" : "");
+  renderLeds();
 
   const g = s.good || {};
-  $("#r-level").textContent = g.level === null || g.level === undefined ? "–" : `${num(g.level)} ${g.unit}`;
-  $("#r-volume").textContent = g.volume_l === null || g.volume_l === undefined ? "–" : `${num(g.volume_l, 0)} L`;
-  $("#r-percent").textContent = g.percent === null || g.percent === undefined ? "–" : `${num(g.percent)} %`;
+  const tank = cfg ? tankModel(cfg, cfg.tank_table || []) : { ready: false };
+  const litres = known(g.volume_l);
+  const level = known(g.level) ? `${num(g.level)} ${g.unit}` : "–";
+  drawGauge($("#r-gauge"), known(g.percent) ? g.percent : scalePercent(g.level));
+  if (litres) {
+    $("#r-big").innerHTML = `${bigNum(g.volume_l, 0)}<small> L</small>`;
+    $("#r-sub").textContent = tank.capacity > 0 ? t("r.ofCapacity", { cap: num(tank.capacity, 0) }) : "";
+  } else if (known(g.level)) {
+    $("#r-big").innerHTML = `${bigNum(g.level)}<small> ${String(g.unit).replace(/</g, "&lt;")}</small>`;
+    $("#r-sub").textContent = t("r.noTank");
+  } else {
+    $("#r-big").textContent = "–";
+    $("#r-sub").textContent = t(s.dial_ready ? "r.never" : "r.setDial");
+  }
+  $("#r-percent").textContent = known(g.percent) ? `${num(g.percent)} %` : "–";
+  $("#r-second-label").textContent = t(litres ? "r.level" : "r.volume");
+  $("#r-second").textContent = litres ? level : "–";
+  $("#r-next").textContent = s.next_read_s >= 0 ? clock(new Date(Date.now() + s.next_read_s * 1000)) : "–";
 
   const a = s.attempt || {};
   const line = $("#r-status");
+  const state = $("#r-state");
   if (!s.dial_ready) {
     line.textContent = t("r.notReady");
     line.className = "status warn";
+    state.textContent = t("r.state.notReady");
+    state.className = "warn";
   } else if (a.ok) {
-    line.textContent = t("r.ok", { contrast: num(a.detail?.contrast, 0) });
-    line.className = "status ok";
+    line.textContent = "";
+    state.textContent = t("r.state.ok");
+    state.className = "ok";
   } else if (a.error) {
     line.textContent = deviceError(a.error);
     line.className = a.suspect ? "status warn" : "status err";
+    state.textContent = t(a.suspect ? "r.state.suspect" : "r.state.failed");
+    state.className = a.suspect ? "warn" : "err";
   } else {
     line.textContent = "";
+    state.textContent = "";
   }
-  const last = g.age_s >= 0 ? t("r.last", { age: duration(g.age_s) }) : t("r.never");
-  $("#r-times").textContent = `${last} · ${t("r.next", { in: duration(s.next_read_s) })}`;
+  $("#r-last").textContent = g.age_s >= 0
+    ? (g.at ? clock(new Date(g.at * 1000)) : t("r.failureAge", { age: duration(g.age_s) })) : "–";
+  $("#r-contrast").textContent = known(a.detail?.contrast) ? num(a.detail.contrast, 0) : "–";
+  $("#r-refused").textContent = String(failures.list.length);
+  $("#r-version").textContent = s.version;
 
   if (s.last_failure !== failures.id) loadFailures(s.last_failure);
   renderFailures();
@@ -315,9 +395,10 @@ async function refresh() {
     status = await api("/api/status");
     renderStatus();
     renderSystem();
+    renderMenu();
   } catch (e) {
-    $("#conn").textContent = t("conn.offline");
-    $("#conn").className = "pill err";
+    status = null;
+    renderLeds();
   }
 }
 
@@ -421,7 +502,7 @@ const dial = {
   setTool(tool, moving = null) {
     this.tool = tool;
     this.moving = moving;
-    $$("#d-tools button").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
+    $$("#d-tools button").forEach((b) => b.classList.toggle("on", b.dataset.tool === tool));
     this.hintKey = `d.hint.${tool}`;
     $("#d-hint").textContent = t(this.hintKey);
   },
@@ -667,6 +748,7 @@ function renderForms() {
   net.ui_password.placeholder = cfg.ui_password_set ? t("n.unchanged") : t("n.nonePw");
   net.ap_password.placeholder = cfg.ap_password_set ? t("n.unchanged") : t("n.nonePw");
   renderCapacity();
+  renderMenu();
 }
 
 // Level -> litres rows typed one per line: "40 520", "40;520", "40,5 520".
@@ -716,37 +798,55 @@ function tankModel(v, table) {
 function renderCapacity() {
   const form = $("#f-tank");
   const v = read(form);
+  $$("#t-shapes button").forEach((b) => b.classList.toggle("on", b.dataset.shape === v.tank_shape));
   form.querySelectorAll("[data-shapes]").forEach((el) => {
     el.hidden = !el.dataset.shapes.split(" ").includes(v.tank_shape);
   });
   $("#t-shape-help").textContent = t(`t.shape.${v.tank_shape}.help`);
   const parsed = parseTable(v.tank_table_text);
   const line = $("#t-capacity");
+  const value = $("#t-capacity-value");
+  value.textContent = "–";
   if (v.tank_shape === "table" && parsed.error) {
     line.textContent = t("t.table.invalid", { n: parsed.error });
     return;
   }
   const tank = tankModel(v, parsed.rows || []);
   if (!tank.ready) {
-    line.textContent = "";
+    line.textContent = t("t.incomplete");
   } else if (tank.capacity > 0) {
-    const extra = v.tank_shape === "box" ? t("t.perCm", { perCm: num(tank.volume(1), 2) })
+    value.innerHTML = `${bigNum(tank.capacity, 0)}<small> L</small>`;
+    line.textContent = v.tank_shape === "box" ? t("t.perCm", { perCm: num(tank.volume(1), 2) })
       : t("t.half", { level: num(tank.full / 2), unit: cfg?.unit || "cm", v: num(tank.volume(tank.full / 2), 0) });
-    line.textContent = `${t("t.capacity", { cap: num(tank.capacity, 0) })} · ${extra}`;
   } else {
     line.textContent = t("t.perCm", { perCm: num(tank.volume(1), 2) });
   }
 }
 $("#f-tank").addEventListener("input", renderCapacity);
+$$("#t-shapes button").forEach((b) => b.addEventListener("click", () => {
+  $("#f-tank").tank_shape.value = b.dataset.shape;
+  renderCapacity();
+}));
+
+// One-line summaries in the settings menu.
+function renderMenu() {
+  if (!cfg) return;
+  const tank = tankModel(cfg, cfg.tank_table || []);
+  $("#sn-tank").textContent = tank.ready ? (tank.capacity > 0 ? `${num(tank.capacity, 0)} L` : t(`t.shape.${cfg.tank_shape}`)) : t("sn.todo");
+  $("#sn-camera").textContent = t("unit.min", { n: Math.round(cfg.interval_s / 60) });
+  $("#sn-network").textContent = status ? t(status.mqtt.connected ? "sn.connected" : status.mqtt.configured ? "sn.down" : "sn.todo") : "";
+  $("#sn-system").textContent = status ? status.version : "";
+}
 
 async function saveForm(e, transform = (v) => v) {
   e.preventDefault();
-  const button = e.target.querySelector("button.primary");
+  const button = e.target.querySelector(".btn.pri");
   await busy(button, async () => {
     const r = await post("/api/config", transform(read(e.target)));
     cfg = await api("/api/config");
     renderForms();
     toast(t(r.restart ? "savedRestart" : "saved"));
+    refresh();  // name, LEDs and home figures follow the new settings
   });
 }
 

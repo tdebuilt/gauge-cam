@@ -22,7 +22,7 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
 - **Filtre de plausibilité** : chaque lecture prend 3 photos et garde la médiane ; un niveau qui
   s'écarte de plus de 5 cm (réglable) de la lecture précédente est revérifié 2 minutes plus tard
   et accepté seulement si les 2 lectures suivantes le confirment : un remplissage passe, un reflet
-  isolé non. Les 4 dernières lectures refusées restent visibles avec leur photo (onglet Lecture).
+  isolé non. Les 4 dernières lectures refusées restent visibles avec leur photo (onglet Niveau).
 - **LED du flash** allumée avant chaque photo ; lecture refusée si l'aiguille est trop peu
   contrastée (photo trop sombre), la dernière valeur bonne est gardée. L'exposition et le gain
   peuvent être fixés pour que chaque photo soit identique.
@@ -37,13 +37,13 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
   démarrage et sa cause, mémoire libre. Annoncées de nouveau à chaque redémarrage de Home
   Assistant. Niveau, volume et remplissage passent à « indisponible » après trois lectures
   manquées, au lieu de garder une vieille valeur.
-- **Mise à jour depuis Home Assistant** ou l'onglet Système : l'appareil cherche chaque jour une
+- **Mise à jour depuis Home Assistant** ou Réglages → Système : l'appareil cherche chaque jour une
   nouvelle version sur GitHub et l'installe en HTTPS (certificats vérifiés). Un nouveau firmware qui
   plante, ou qui ne rejoint pas le Wi-Fi en 5 minutes, est remplacé par le précédent au redémarrage.
 - **Fonctionne sans surveillance** : un chien de garde redémarre un programme bloqué ; la caméra est
   relancée, puis l'appareil redémarre (3 fois au plus depuis la mise sous tension) quand elle
   échoue ; l'appareil redémarre aussi après 1 h sans Wi-Fi, ou sans le serveur MQTT qu'il avait
-  joint. L'onglet Système garde un journal des 80 derniers événements et dit pourquoi l'appareil a
+  joint. Réglages → Système garde un journal des 80 derniers événements et dit pourquoi l'appareil a
   redémarré (plantage, chien de garde, sous-tension…).
 - **Horloge** par un serveur NTP (`pool.ntp.org` par défaut, ou la passerelle) : les lectures, les
   lectures refusées et le journal sont datés.
@@ -76,11 +76,11 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
    l'aiguille, le début et la fin de l'échelle avec leurs valeurs, puis des points intermédiaires
    partout où l'espacement des graduations change, zone rouge comprise. *Tester*, puis
    *Enregistrer*.
-4. Onglet **Cuve** : forme et dimensions intérieures, ou table de jaugeage. Onglet **Réseau** :
-   serveur MQTT.
+4. Onglet **Réglages** : **Cuve** (forme et dimensions intérieures, ou table de jaugeage), puis
+   **Réseau et MQTT** (serveur MQTT).
 
-Mise à jour ensuite : entité *Firmware* dans Home Assistant, onglet Système (*Rechercher une mise
-à jour*), ou à la main avec le fichier `gauge-cam.bin` de la
+Mise à jour ensuite : entité *Firmware* dans Home Assistant, Réglages → Système (*Rechercher une
+mise à jour*), ou à la main avec le fichier `gauge-cam.bin` de la
 [dernière version](https://github.com/tdebuilt/gauge-cam/releases/latest).
 
 ## MQTT
@@ -115,7 +115,9 @@ pio run && tools/make_factory.sh    # firmware et images dans dist/
 ```
 
 `lib/gauge` est l'algorithme, en C++ portable ; `src/` le firmware Arduino ; `web/` l'interface,
-compressée dans le firmware à la compilation (`tools/prebuild.py`). GitHub Actions teste et
+compressée dans le firmware à la compilation (`tools/prebuild.py`, 150 Ko au plus), avec deux polices
+réduites par `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`). Refonte en cours :
+`docs/plan-refonte-ux.md`. GitHub Actions teste et
 compile chaque push, publie la page de flash depuis `main` et une release pour chaque tag `v*`.
 
 ## Licence

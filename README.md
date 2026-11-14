@@ -22,7 +22,7 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
 - **Plausibility filter**: each reading takes 3 photos and keeps the median; a level that jumps
   further than 5 cm (adjustable) from the last one is checked again 2 minutes later and accepted
   only once the next 2 readings agree, so a refill gets through and a stray reflection does not.
-  The last 4 refused readings stay visible with their photo in the Reading tab.
+  The last 4 refused readings stay visible with their photo in the Level tab.
 - **Flash LED** lit before each photo; a reading whose needle contrast is too low (dark photo) is
   rejected and the last good value is kept. Exposure and gain can be fixed so that every photo is
   the same.
@@ -35,12 +35,12 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
   reading status, needle angle, contrast, Wi-Fi signal, last start and its cause, free memory.
   Announced again whenever Home Assistant restarts. Level, volume and fill turn unavailable after
   three missed readings instead of showing an old value.
-- **Updates from Home Assistant** or from the System tab: the device looks for a new GitHub release
+- **Updates from Home Assistant** or from Settings → System: the device looks for a new GitHub release
   every day and installs it over HTTPS (certificates checked). A new firmware that crashes, or cannot
   join Wi-Fi within 5 minutes, is replaced by the previous one at the next restart.
 - **Runs unattended**: a task watchdog restarts a stuck program; the camera is started again, then
   the device restarts (at most 3 times since power on) when it fails; the device also restarts after
-  1 hour without Wi-Fi, or without the MQTT server it had reached. The System tab keeps a log of the
+  1 hour without Wi-Fi, or without the MQTT server it had reached. Settings → System keeps a log of the
   last 80 events and shows why the device last restarted (crash, watchdog, brown-out…).
 - **Clock** from an NTP server (`pool.ntp.org` by default, or the gateway): readings, refused
   readings and the log are dated.
@@ -69,9 +69,10 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 3. **Dial** tab: *New photo*, adjust the light and rotation if needed, then on the image: the dial outline, the needle centre, the start
    and end of the scale with their values, then intermediate points wherever the graduation
    spacing changes, red zone included. *Test*, then *Save*.
-4. **Tank** tab: shape and inner dimensions, or the gauging table. **Network** tab: MQTT server.
+4. **Settings** tab: **Tank** (shape and inner dimensions, or the gauging table), then
+   **Network and MQTT** (MQTT server).
 
-Later updates: the *Firmware* entity in Home Assistant, the System tab (*Check for an update*), or
+Later updates: the *Firmware* entity in Home Assistant, Settings → System (*Check for an update*), or
 by hand with the `gauge-cam.bin` file of the
 [latest release](https://github.com/tdebuilt/gauge-cam/releases/latest).
 
@@ -107,7 +108,9 @@ pio run && tools/make_factory.sh    # firmware and images in dist/
 ```
 
 `lib/gauge` is the algorithm in portable C++; `src/` the Arduino firmware; `web/` the interface,
-compressed into the firmware at build time (`tools/prebuild.py`). GitHub Actions tests and builds
+compressed into the firmware at build time (`tools/prebuild.py`, 150 KB at most), with two fonts
+cut down by `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`). Redesign in progress:
+`docs/plan-refonte-ux.md`. GitHub Actions tests and builds
 every push, publishes the flasher page from `main` and a release for each `v*` tag.
 
 ## License

@@ -3,49 +3,71 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>Gauge Cam</title>
+<link rel="preload" href="/gaugemono.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<header>
-  <h1 id="title">Gauge Cam</h1>
-  <span id="conn" class="pill">…</span>
-  <select id="lang" aria-label="Language"></select>
+<header class="hd">
+  <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M8.5 21A9 9 0 0 1 16 7" fill="none" stroke="#e5484d" stroke-width="2.4" stroke-linecap="round"/><path d="M16 16l6-6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="16" r="2.6" fill="currentColor"/></svg>
+  <b id="title">Gauge Cam</b>
+  <nav id="tabs" class="tabs">
+    <button data-tab="reading" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 16l4-5" stroke="currentColor" stroke-width="2"/></svg><span data-i18n="tab.reading"></span></button>
+    <button data-tab="dial"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span data-i18n="tab.dial"></span></button>
+    <button data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="2"/></svg><span data-i18n="tab.settings"></span></button>
+  </nav>
+  <div class="leds">
+    <span id="led-wifi" class="led">Wi-Fi</span>
+    <span id="led-mqtt" class="led">MQTT</span>
+    <span id="led-cam" class="led" data-i18n="led.camera"></span>
+    <select id="lang" aria-label="Language"></select>
+  </div>
 </header>
-<nav id="tabs">
-  <button data-tab="reading" class="active" data-i18n="tab.reading"></button>
-  <button data-tab="dial" data-i18n="tab.dial"></button>
-  <button data-tab="tank" data-i18n="tab.tank"></button>
-  <button data-tab="camera" data-i18n="tab.camera"></button>
-  <button data-tab="network" data-i18n="tab.network"></button>
-  <button data-tab="system" data-i18n="tab.system"></button>
-</nav>
 <main>
 
-<section id="tab-reading" class="tab active">
-  <div class="cards">
-    <div class="card big"><span class="label" data-i18n="r.level"></span><span id="r-level" class="value">–</span></div>
-    <div class="card big"><span class="label" data-i18n="r.volume"></span><span id="r-volume" class="value">–</span></div>
-    <div class="card big"><span class="label" data-i18n="r.percent"></span><span id="r-percent" class="value">–</span></div>
-  </div>
-  <p id="r-status" class="status"></p>
-  <div class="actions">
-    <button id="r-read" class="primary" data-i18n="r.read"></button>
-    <span id="r-times" class="muted"></span>
-  </div>
-  <div class="viewer"><div class="stage"><img id="r-photo" alt=""><canvas id="r-overlay"></canvas></div></div>
-  <div id="r-failures" hidden>
-    <h3 data-i18n="r.failures"></h3>
-    <p class="help" data-i18n="r.failures.help"></p>
-    <div id="r-failure-list" class="failures"></div>
+<section id="tab-reading" class="tab on">
+  <div class="home">
+    <div class="inst">
+      <div class="gwrap">
+        <svg id="r-gauge" class="gauge" viewBox="0 0 300 300" aria-hidden="true"></svg>
+        <div class="bigv"><div class="v" id="r-big">–</div><div class="s" id="r-sub"></div></div>
+      </div>
+      <div class="trio">
+        <div><div class="l" data-i18n="r.percent"></div><div class="v" id="r-percent">–</div></div>
+        <div><div class="l" id="r-second-label"></div><div class="v" id="r-second">–</div></div>
+        <div><div class="l" data-i18n="r.nextAt"></div><div class="v" id="r-next">–</div></div>
+      </div>
+      <div class="row center"><button id="r-read" class="btn pri" data-i18n="r.read"></button></div>
+    </div>
+    <div class="side">
+      <div class="pnl">
+        <h3><span data-i18n="r.reading"></span><span id="r-state"></span></h3>
+        <p id="r-status" class="status"></p>
+        <dl class="kv">
+          <dt data-i18n="r.lastAt"></dt><dd id="r-last">–</dd>
+          <dt data-i18n="r.contrast"></dt><dd id="r-contrast">–</dd>
+          <dt data-i18n="r.refused"></dt><dd id="r-refused">0</dd>
+          <dt data-i18n="s.version"></dt><dd id="r-version">–</dd>
+        </dl>
+      </div>
+      <div class="pnl">
+        <h3 data-i18n="r.photo"></h3>
+        <div class="viewer"><div class="stage"><img id="r-photo" alt=""><canvas id="r-overlay"></canvas></div></div>
+      </div>
+      <div class="pnl" id="r-failures" hidden>
+        <h3 data-i18n="r.failures"></h3>
+        <p class="help" data-i18n="r.failures.help"></p>
+        <div id="r-failure-list" class="failures"></div>
+      </div>
+    </div>
   </div>
 </section>
 
 <section id="tab-dial" class="tab">
   <p class="help" data-i18n-html="d.help"></p>
   <div class="toolbar">
-    <button id="d-photo" data-i18n="d.photo"></button>
-    <span class="sep"></span>
+    <button id="d-photo" class="btn" data-i18n="d.photo"></button>
     <div class="seg" id="d-tools">
       <button data-tool="roi" data-i18n="d.tool.roi"></button>
       <button data-tool="pivot" data-i18n="d.tool.pivot"></button>
@@ -53,12 +75,11 @@
       <button data-tool="end" data-i18n="d.tool.end"></button>
       <button data-tool="point" data-i18n="d.tool.point"></button>
     </div>
-    <span class="sep"></span>
-    <label><span data-i18n="d.zoom"></span> <select id="d-zoom"><option value="fit" data-i18n="d.zoom.fit"></option><option value="1">100 %</option><option value="2">200 %</option></select></label>
+    <label class="inline"><span data-i18n="d.zoom"></span> <select id="d-zoom"><option value="fit" data-i18n="d.zoom.fit"></option><option value="1">100 %</option><option value="2">200 %</option></select></label>
   </div>
   <div class="dial-layout">
     <div class="viewer scroll" id="d-viewer"><div class="stage"><img id="d-photo-img" alt=""><canvas id="d-overlay"></canvas></div></div>
-    <aside class="panel">
+    <aside class="pnl panel">
       <details id="d-shot-box" open>
         <summary data-i18n="d.shot"></summary>
         <form id="d-shot" class="shot">
@@ -96,111 +117,133 @@
         <tbody id="d-points"></tbody>
       </table>
       <div class="actions">
-        <button id="d-test" data-i18n="d.test"></button>
-        <button id="d-save" class="primary" data-i18n="common.save"></button>
+        <button id="d-test" class="btn" data-i18n="d.test"></button>
+        <button id="d-save" class="btn pri" data-i18n="common.save"></button>
       </div>
       <p id="d-result" class="status"></p>
     </aside>
   </div>
 </section>
 
-<section id="tab-tank" class="tab">
-  <p class="help" data-i18n-html="t.help"></p>
-  <form id="f-tank" class="form">
-    <label><span data-i18n="t.shape"></span>
-      <select name="tank_shape">
-        <option value="box" data-i18n="t.shape.box"></option>
-        <option value="hcyl" data-i18n="t.shape.hcyl"></option>
-        <option value="vcyl" data-i18n="t.shape.vcyl"></option>
-        <option value="table" data-i18n="t.shape.table"></option>
-      </select></label>
-    <p class="help" id="t-shape-help"></p>
-    <label data-shapes="box hcyl"><span data-i18n="t.length"></span> <input name="tank_length_cm" type="number" step="0.1" min="0"></label>
-    <label data-shapes="box"><span data-i18n="t.width"></span> <input name="tank_width_cm" type="number" step="0.1" min="0"></label>
-    <label data-shapes="hcyl vcyl"><span data-i18n="t.diameter"></span> <input name="tank_diameter_cm" type="number" step="0.1" min="0"></label>
-    <label data-shapes="box vcyl"><span data-i18n="t.height"></span> <input name="tank_height_cm" type="number" step="0.1" min="0"></label>
-    <label data-shapes="table"><span data-i18n="t.table"></span>
-      <textarea name="tank_table_text" rows="8" spellcheck="false" placeholder="0 0&#10;40 520&#10;150 3000"></textarea>
-      <small data-i18n="t.table.help"></small></label>
-    <label><span data-i18n="t.offset"></span> <input name="level_offset_cm" type="number" step="0.1">
-      <small data-i18n="t.offset.help"></small></label>
-    <p id="t-capacity" class="muted"></p>
-    <button class="primary" data-i18n="common.save"></button>
-  </form>
-</section>
+<section id="tab-settings" class="tab">
+  <div class="set">
+    <nav id="snav" class="snav">
+      <button data-sub="tank" class="on"><span data-i18n="tab.tank"></span><small id="sn-tank"></small></button>
+      <button data-sub="camera"><span data-i18n="tab.camera"></span><small id="sn-camera"></small></button>
+      <button data-sub="network"><span data-i18n="tab.network"></span><small id="sn-network"></small></button>
+      <button data-sub="system"><span data-i18n="tab.system"></span><small id="sn-system"></small></button>
+    </nav>
+    <div>
 
-<section id="tab-camera" class="tab">
-  <form id="f-camera" class="form">
-    <label><span data-i18n="c.interval"></span> <input name="interval_min" type="number" min="1" step="1"></label>
-    <p class="help" data-i18n="c.moved"></p>
-    <label><span data-i18n="c.jpeg"></span> <input name="jpeg_quality" type="number" min="4" max="63"></label>
-    <label><span data-i18n="c.minContrast"></span> <input name="min_contrast" type="number" min="0" max="255">
-      <small data-i18n="c.minContrast.help"></small></label>
-    <label><span data-i18n="c.samples"></span> <input name="samples" type="number" min="1" max="5">
-      <small data-i18n="c.samples.help"></small></label>
-    <label><span data-i18n="c.maxJump"></span> <input name="max_jump" type="number" min="0" step="0.5">
-      <small data-i18n="c.maxJump.help"></small></label>
-    <button class="primary" data-i18n="common.save"></button>
-  </form>
-</section>
+      <div id="sub-tank" class="sub pnl on">
+        <h3 data-i18n="t.title"></h3>
+        <form id="f-tank" class="form">
+          <input type="hidden" name="tank_shape">
+          <div class="shapes" id="t-shapes">
+            <button type="button" data-shape="box"><svg viewBox="0 0 48 36" aria-hidden="true"><path d="M6 10l10-6h26v22l-10 6H6z M6 10h26v22 M32 10l10-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg><span data-i18n="t.shape.box"></span></button>
+            <button type="button" data-shape="hcyl"><svg viewBox="0 0 48 36" aria-hidden="true"><path d="M12 6h24a12 12 0 0 1 0 24H12a12 12 0 0 1 0-24z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 6a5 12 0 0 1 0 24" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg><span data-i18n="t.shape.hcyl"></span></button>
+            <button type="button" data-shape="vcyl"><svg viewBox="0 0 48 36" aria-hidden="true"><ellipse cx="24" cy="7" rx="11" ry="4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 7v22a11 4 0 0 0 22 0V7" fill="none" stroke="currentColor" stroke-width="2.2"/></svg><span data-i18n="t.shape.vcyl"></span></button>
+            <button type="button" data-shape="table"><svg viewBox="0 0 48 36" aria-hidden="true"><path d="M8 30L18 22L28 14L40 6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M6 4v28h38" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg><span data-i18n="t.shape.table"></span></button>
+          </div>
+          <p class="help" id="t-shape-help"></p>
+          <p class="help" data-i18n-html="t.help"></p>
+          <div class="fld">
+            <label class="f" data-shapes="box hcyl"><span data-i18n="t.length"></span> <input name="tank_length_cm" type="number" step="0.1" min="0"></label>
+            <label class="f" data-shapes="box"><span data-i18n="t.width"></span> <input name="tank_width_cm" type="number" step="0.1" min="0"></label>
+            <label class="f" data-shapes="hcyl vcyl"><span data-i18n="t.diameter"></span> <input name="tank_diameter_cm" type="number" step="0.1" min="0"></label>
+            <label class="f" data-shapes="box vcyl"><span data-i18n="t.height"></span> <input name="tank_height_cm" type="number" step="0.1" min="0"></label>
+            <label class="f"><span data-i18n="t.offset"></span> <input name="level_offset_cm" type="number" step="0.1"></label>
+          </div>
+          <label class="f wide" data-shapes="table"><span data-i18n="t.table"></span>
+            <textarea name="tank_table_text" rows="8" spellcheck="false" placeholder="0 0&#10;40 520&#10;150 3000"></textarea>
+            <small data-i18n="t.table.help"></small></label>
+          <small data-i18n="t.offset.help"></small>
+          <div class="capline">
+            <div><div class="l" data-i18n="t.capacityLabel"></div><div class="v" id="t-capacity-value">–</div><small id="t-capacity"></small></div>
+            <button class="btn pri" data-i18n="common.save"></button>
+          </div>
+        </form>
+      </div>
 
-<section id="tab-network" class="tab">
-  <form id="f-network" class="form">
-    <label><span data-i18n="n.name"></span> <input name="name"></label>
-    <label><span data-i18n="n.lang"></span> <select name="lang"><option value="fr">Français</option><option value="en">English</option></select></label>
-    <h3 data-i18n="n.wifi"></h3>
-    <label><span data-i18n="n.ssid"></span> <input name="wifi_ssid" list="ssids"><datalist id="ssids"></datalist></label>
-    <button type="button" id="n-scan" data-i18n="n.scan"></button>
-    <label><span data-i18n="n.password"></span> <input name="wifi_pass" type="password" autocomplete="new-password"></label>
-    <h3 data-i18n="n.mqtt"></h3>
-    <label><span data-i18n="n.host"></span> <input name="mqtt_host">
-      <small data-i18n="n.host.help"></small></label>
-    <label><span data-i18n="n.port"></span> <input name="mqtt_port" type="number" min="1" max="65535"></label>
-    <label><span data-i18n="n.user"></span> <input name="mqtt_user"></label>
-    <label><span data-i18n="n.password"></span> <input name="mqtt_pass" type="password" autocomplete="new-password"></label>
-    <label><span data-i18n="n.prefix"></span> <input name="mqtt_prefix"></label>
-    <label><input name="ha_discovery" type="checkbox"> <span data-i18n="n.discoveryOn"></span></label>
-    <label><span data-i18n="n.discovery"></span> <input name="discovery_prefix"></label>
-    <h3 data-i18n="n.services"></h3>
-    <label><span data-i18n="n.ntp"></span> <input name="ntp_server">
-      <small data-i18n="n.ntp.help"></small></label>
-    <label><input name="update_check" type="checkbox"> <span data-i18n="n.updateCheck"></span></label>
-    <h3 data-i18n="n.access"></h3>
-    <label><span data-i18n="n.uiPassword"></span> <input name="ui_password" type="password" autocomplete="new-password"></label>
-    <label><input name="ui_password_clear" type="checkbox"> <span data-i18n="n.uiClear"></span></label>
-    <label><span data-i18n="n.apPassword"></span> <input name="ap_password" type="password" autocomplete="new-password" minlength="8" maxlength="63">
-      <small data-i18n="n.apPassword.help"></small></label>
-    <label><input name="ap_password_clear" type="checkbox"> <span data-i18n="n.apClear"></span></label>
-    <button class="primary" data-i18n="common.save"></button>
-  </form>
-</section>
+      <div id="sub-camera" class="sub pnl">
+        <h3 data-i18n="tab.camera"></h3>
+        <form id="f-camera" class="form">
+          <label class="f"><span data-i18n="c.interval"></span> <input name="interval_min" type="number" min="1" step="1"></label>
+          <p class="help" data-i18n="c.moved"></p>
+          <label class="f"><span data-i18n="c.jpeg"></span> <input name="jpeg_quality" type="number" min="4" max="63"></label>
+          <label class="f"><span data-i18n="c.minContrast"></span> <input name="min_contrast" type="number" min="0" max="255">
+            <small data-i18n="c.minContrast.help"></small></label>
+          <label class="f"><span data-i18n="c.samples"></span> <input name="samples" type="number" min="1" max="5">
+            <small data-i18n="c.samples.help"></small></label>
+          <label class="f"><span data-i18n="c.maxJump"></span> <input name="max_jump" type="number" min="0" step="0.5">
+            <small data-i18n="c.maxJump.help"></small></label>
+          <button class="btn pri" data-i18n="common.save"></button>
+        </form>
+      </div>
 
-<section id="tab-system" class="tab">
-  <dl id="s-info" class="info"></dl>
-  <h3 data-i18n="s.update"></h3>
-  <p id="s-release" class="status"></p>
-  <div class="actions">
-    <button id="s-check" data-i18n="s.check"></button>
-    <button id="s-install" class="primary" hidden></button>
-    <progress id="s-ota-progress" max="100" value="0" hidden></progress>
+      <div id="sub-network" class="sub pnl">
+        <h3 data-i18n="tab.network"></h3>
+        <form id="f-network" class="form">
+          <label class="f"><span data-i18n="n.name"></span> <input name="name"></label>
+          <label class="f"><span data-i18n="n.lang"></span> <select name="lang"><option value="fr">Français</option><option value="en">English</option></select></label>
+          <h4 data-i18n="n.wifi"></h4>
+          <label class="f"><span data-i18n="n.ssid"></span> <input name="wifi_ssid" list="ssids"><datalist id="ssids"></datalist></label>
+          <button type="button" id="n-scan" class="btn" data-i18n="n.scan"></button>
+          <label class="f"><span data-i18n="n.password"></span> <input name="wifi_pass" type="password" autocomplete="new-password"></label>
+          <h4 data-i18n="n.mqtt"></h4>
+          <label class="f"><span data-i18n="n.host"></span> <input name="mqtt_host">
+            <small data-i18n="n.host.help"></small></label>
+          <label class="f"><span data-i18n="n.port"></span> <input name="mqtt_port" type="number" min="1" max="65535"></label>
+          <label class="f"><span data-i18n="n.user"></span> <input name="mqtt_user"></label>
+          <label class="f"><span data-i18n="n.password"></span> <input name="mqtt_pass" type="password" autocomplete="new-password"></label>
+          <label class="f"><span data-i18n="n.prefix"></span> <input name="mqtt_prefix"></label>
+          <label class="check"><input name="ha_discovery" type="checkbox"> <span data-i18n="n.discoveryOn"></span></label>
+          <label class="f"><span data-i18n="n.discovery"></span> <input name="discovery_prefix"></label>
+          <h4 data-i18n="n.services"></h4>
+          <label class="f"><span data-i18n="n.ntp"></span> <input name="ntp_server">
+            <small data-i18n="n.ntp.help"></small></label>
+          <label class="check"><input name="update_check" type="checkbox"> <span data-i18n="n.updateCheck"></span></label>
+          <h4 data-i18n="n.access"></h4>
+          <label class="f"><span data-i18n="n.uiPassword"></span> <input name="ui_password" type="password" autocomplete="new-password"></label>
+          <label class="check"><input name="ui_password_clear" type="checkbox"> <span data-i18n="n.uiClear"></span></label>
+          <label class="f"><span data-i18n="n.apPassword"></span> <input name="ap_password" type="password" autocomplete="new-password" minlength="8" maxlength="63">
+            <small data-i18n="n.apPassword.help"></small></label>
+          <label class="check"><input name="ap_password_clear" type="checkbox"> <span data-i18n="n.apClear"></span></label>
+          <button class="btn pri" data-i18n="common.save"></button>
+        </form>
+      </div>
+
+      <div id="sub-system" class="sub pnl">
+        <h3 data-i18n="tab.system"></h3>
+        <dl id="s-info" class="kv"></dl>
+        <h4 data-i18n="s.update"></h4>
+        <p id="s-release" class="status"></p>
+        <div class="actions">
+          <button id="s-check" class="btn" data-i18n="s.check"></button>
+          <button id="s-install" class="btn pri" hidden></button>
+          <progress id="s-ota-progress" max="100" value="0" hidden></progress>
+        </div>
+        <p class="help" data-i18n-html="s.update.help"></p>
+        <div class="actions">
+          <input id="s-file" type="file" accept=".bin">
+          <button id="s-update" class="btn" data-i18n="s.updateButton"></button>
+          <progress id="s-progress" max="100" value="0" hidden></progress>
+        </div>
+        <h4 data-i18n="s.backup"></h4>
+        <p class="help" data-i18n="s.backup.help"></p>
+        <div class="actions">
+          <button id="s-export" class="btn" data-i18n="s.export"></button>
+          <label class="btn"><span data-i18n="s.import"></span><input id="s-import" type="file" accept=".json" hidden></label>
+          <button id="s-restart" class="btn" data-i18n="s.restart"></button>
+        </div>
+        <h4 data-i18n="s.log"></h4>
+        <p class="help" data-i18n="s.log.help"></p>
+        <div class="actions"><button id="s-log-refresh" class="btn" data-i18n="s.logRefresh"></button></div>
+        <pre id="s-log" class="log"></pre>
+      </div>
+
+    </div>
   </div>
-  <p class="help" data-i18n-html="s.update.help"></p>
-  <div class="actions">
-    <input id="s-file" type="file" accept=".bin">
-    <button id="s-update" data-i18n="s.updateButton"></button>
-    <progress id="s-progress" max="100" value="0" hidden></progress>
-  </div>
-  <h3 data-i18n="s.backup"></h3>
-  <p class="help" data-i18n="s.backup.help"></p>
-  <div class="actions">
-    <button id="s-export" data-i18n="s.export"></button>
-    <label class="button"><span data-i18n="s.import"></span><input id="s-import" type="file" accept=".json" hidden></label>
-    <button id="s-restart" data-i18n="s.restart"></button>
-  </div>
-  <h3 data-i18n="s.log"></h3>
-  <p class="help" data-i18n="s.log.help"></p>
-  <div class="actions"><button id="s-log-refresh" data-i18n="s.logRefresh"></button></div>
-  <pre id="s-log" class="log"></pre>
 </section>
 
 </main>

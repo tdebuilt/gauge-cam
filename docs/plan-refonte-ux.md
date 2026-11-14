@@ -28,8 +28,10 @@ Maquettes reconstruites par `build.py` et `build_aplus.py` ; elles ne touchent n
 - Flash : environ 600 Ko libres (partitions `min_spiffs`, firmware de 1 305 568 octets au 2026-11-14).
   Budget de l'interface embarquée : **150 Ko gzippés** en tout, polices comprises ; `tools/prebuild.py`
   échoue au-delà.
-- Polices embarquées en sous-ensemble woff2 (Latin, chiffres, « ° → ± – … ») ; licence SIL OFL, notice
-  jointe. Repli `system-ui` si le budget ne tient pas.
+- Polices embarquées en sous-ensemble woff2 Latin-1 (`tools/subset_fonts.py`, 11 Ko chacune) : IBM Plex
+  Mono renommée Gauge Mono (« Plex » est un nom réservé de la licence SIL OFL) pour les chiffres, Manrope
+  pour la marque. Le texte courant prend la police du système plutôt qu'Inter : trois fichiers de plus
+  pour un gain faible. Notice : `web/fonts-license.txt`.
 - Aucun appel externe depuis l'interface de l'appareil : elle doit marcher sans Internet (point d'accès).
 - Les réglages envoyés restent ceux d'aujourd'hui (`/api/config`) : une ancienne configuration se relit
   sans migration.
