@@ -65,15 +65,21 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 
 1. Open the [flasher page](https://tdebuilt.github.io/gauge-cam/), plug in the ESP32-CAM-MB and
    click *Install*.
-2. Set up Wi-Fi when offered, then open the device.
-3. **Dial** tab, in four steps: *Photo* (light and rotation), *Framing* (drag the corners around the
-   dial; the needle centre is found by itself, click to correct it), *Scale* (pick the gauge model,
-   then click the graduations in order: the next value comes by itself; a click between two
-   graduations adds a point and a bubble asks for its value; zoom with the wheel, two fingers or
-   +/− for precise placement), *Check* (a test reading: if the value
-   is right, *Yes, save*).
-4. **Settings** tab: **Tank** (shape and inner dimensions, or the gauging table), then
-   **Network and MQTT** (MQTT server).
+2. Set up Wi-Fi when offered, then *Visit device*: the device opens its **set-up**, six steps that
+   can each wait (*Later*):
+   - *Photo* (light and rotation);
+   - *Framing* (drag the corners around the dial; the needle centre is found by itself, click to
+     correct it);
+   - *Scale* (pick the gauge model, then click the graduations in order: the next value comes by
+     itself; a click between two graduations adds a point and a bubble asks for its value; zoom with
+     the wheel, two fingers or +/− for precise placement);
+   - *Check* (a test reading: is the value right?);
+   - *Tank* (shape, then the capacity on its plate and the height, which defaults to the end of the
+     scale; or the inner dimensions, or a gauging table);
+   - *Home Assistant* (MQTT server, user and password; *Test and finish* only saves a connection
+     that works).
+3. Until every step is done, the Level tab lists what is missing, with a *Do it* button for each.
+   The same settings stay in the **Dial** and **Settings** tabs.
 
 Later updates: the *Firmware* entity in Home Assistant, Settings → System (*Check for an update*), or
 by hand with the `gauge-cam.bin` file of the
@@ -99,8 +105,10 @@ settings), `POST /api/read`,
 `POST /api/test` (reads the last photo with unsaved settings), `GET /api/photo.jpg`,
 `GET /api/failures` and `GET /api/failure.jpg?id=` (refused readings), `GET /api/log`,
 `POST /api/update/check` and `POST /api/update/install` (GitHub release),
-`GET /api/wifi/scan`, `POST /api/restart`, `POST /api/update` (firmware). Passwords are never
-sent back. An interface password (user `admin`) can be set.
+`POST /api/mqtt/test` (one connection with unsaved MQTT settings), `GET /api/wifi/scan`,
+`POST /api/restart`, `POST /api/update` (firmware). The `setup` key of the configuration holds the
+set-up steps (`photo`, `frame`, `grad`, `check`, `tank`, `ha`) marked `done` or `later`; `null`
+puts a step back to do. Passwords are never sent back. An interface password (user `admin`) can be set.
 
 ## Development
 

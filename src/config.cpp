@@ -27,6 +27,13 @@ void takeSecret(JsonObjectConst in, const char* key, String& field) {
   }
 }
 
+int setupIndex(const char* step) {
+  for (size_t i = 0; i < kSetupCount; ++i) {
+    if (strcmp(kSetupSteps[i], step) == 0) return i;
+  }
+  return -1;
+}
+
 }  // namespace
 
 gauge::Settings Config::gaugeSettings() const {
@@ -119,6 +126,11 @@ void Config::toJson(JsonObject out, bool with_secrets) const {
     a.add(row.second);
   }
   out["level_offset_cm"] = level_offset_cm;
+  JsonObject setup = out["setup"].to<JsonObject>();
+  for (size_t i = 0; i < kSetupCount; ++i) {
+    if (setup_done & (1 << i)) setup[kSetupSteps[i]] = "done";
+    else if (setup_later & (1 << i)) setup[kSetupSteps[i]] = "later";
+  }
 }
 
 bool Config::fromJson(JsonObjectConst in, String& error) {
@@ -203,6 +215,22 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   take(in, "tank_width_cm", next.tank_width_cm);
   take(in, "tank_height_cm", next.tank_height_cm);
   take(in, "level_offset_cm", next.level_offset_cm);
+  // Set-up steps: "done", "later" or null (still to do); absent ones keep their state.
+  if (in["setup"].is<JsonObjectConst>()) {
+    for (JsonPairConst kv : in["setup"].as<JsonObjectConst>()) {
+      const int i = setupIndex(kv.key().c_str());
+      const char* state = kv.value().as<const char*>();
+      const bool done = state && strcmp(state, "done") == 0;
+      const bool later = state && strcmp(state, "later") == 0;
+      if (i < 0 || (!kv.value().isNull() && !done && !later)) {
+        error = "setup: steps are photo, frame, grad, check, tank, ha; states done, later or null";
+        return false;
+      }
+      const uint8_t bit = 1 << i;
+      next.setup_done = done ? next.setup_done | bit : next.setup_done & ~bit;
+      next.setup_later = later ? next.setup_later | bit : next.setup_later & ~bit;
+    }
+  }
 
   bool table_ok = next.tank_table.size() <= 40;
   for (size_t i = 1; i < next.tank_table.size(); ++i) {
@@ -268,6 +296,12 @@ bool Config::load() {
   String error;
   if (!fromJson(doc.as<JsonObjectConst>(), error)) return false;
   wifi_verified = doc["wifi_verified"] | false;
+  // Saved before the set-up existed by a device that already reads the dial:
+  // what works counts as done, the rest waits on the home page.
+  if (!doc["setup"].is<JsonObjectConst>() && dialReady()) {
+    const bool parts[kSetupCount] = {true, true, true, true, tankReady(), mqtt_host.length() > 0};
+    for (size_t i = 0; i < kSetupCount; ++i) (parts[i] ? setup_done : setup_later) |= 1 << i;
+  }
   return true;
 }
 

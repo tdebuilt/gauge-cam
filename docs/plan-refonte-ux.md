@@ -87,6 +87,22 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
   `tools/mock_device.py` (les deux nouveautés) ; `test/host` (calcul de capacité si porté en C++).
 - Tests : parcours complet en 25 gestes sur le simulateur ; « Plus tard » à chaque étape puis reprise
   depuis l'accueil ; test MQTT réussi et refusé contre le CT 110 (mosquitto) ; mise en service réelle.
+- Fait le 2026-11-14, essai sur l'appareil à faire. Écarts au plan :
+  - `/` sert toujours la même page : c'est l'interface qui ouvre la mise en service en lisant
+    `setup`, tant qu'une étape n'est ni faite ni remise à plus tard ;
+  - `setup` vaut `{"photo": "done", "tank": "later", …}` ; une étape absente reste à faire. Cuve et
+    Home Assistant comptent comme faits dès qu'ils sont réglés dans Réglages, le cadran dès qu'il est
+    enregistré à l'étape Vérification. Un appareil déjà en service (configuration sans `setup`,
+    cadran réglé) passe à la mise à jour en « fait » pour ce qui marche, « plus tard » pour le reste ;
+  - « Plus tard » sur une étape du cadran remet les quatre ; chaque étape quittée enregistre ce qui
+    est déjà fait (cadre, centre, puis graduations quand elles forment une échelle) ;
+  - Cuve par la capacité aussi dans Réglages : l'interface en tire des dimensions qui donnent les
+    mêmes litres à tout niveau (côté carré, diamètre, ou longueur du cylindre couché) ;
+  - bouton « Tester la connexion » dans Réglages → Réseau et MQTT ;
+  - parcours mesuré : 26 gestes, contre 25 comptés sur la maquette (cadran, capacité, trois champs MQTT) ;
+  - test MQTT : refus vérifié contre le CT 110 (mosquitto) par le simulateur, qui fait la même
+    connexion en Python ; réussite vérifiée contre un faux serveur local ; la réussite réelle se
+    fera sur l'appareil avec son compte MQTT.
 
 ### 4. v0.5.0 — Page d'installation
 

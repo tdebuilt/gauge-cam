@@ -12,6 +12,7 @@
 <header class="hd">
   <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M8.5 21A9 9 0 0 1 16 7" fill="none" stroke="#e5484d" stroke-width="2.4" stroke-linecap="round"/><path d="M16 16l6-6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="16" r="2.6" fill="currentColor"/></svg>
   <b id="title">Gauge Cam</b>
+  <span class="su-title" data-i18n="su.title"></span>
   <nav id="tabs" class="tabs">
     <button data-tab="reading" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 16l4-5" stroke="currentColor" stroke-width="2"/></svg><span data-i18n="tab.reading"></span></button>
     <button data-tab="dial"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span data-i18n="tab.dial"></span></button>
@@ -25,6 +26,40 @@
   </div>
 </header>
 <main>
+
+<section id="setup" hidden>
+  <div class="su-bar" id="su-bar">
+    <div class="prog" id="su-prog"></div>
+    <span class="su-kick" id="su-kick"></span>
+    <button class="btn" id="su-later" data-i18n="su.later"></button>
+  </div>
+  <div class="su-page pnl dpanel su-welcome" data-page="welcome">
+    <h1 data-i18n="su.title"></h1>
+    <p class="okline" id="su-wifi"></p>
+    <button class="btn" id="su-wifi-set" data-i18n="su.wifi.set"></button>
+    <p class="mut" data-i18n="su.lead"></p>
+    <ol class="su-list" id="su-list"></ol>
+    <div class="foot"><button class="btn" id="su-skip" data-i18n="su.later"></button><button class="btn pri" id="su-start" data-i18n="su.start"></button></div>
+  </div>
+  <div class="su-page pnl dpanel" data-page="tank">
+    <h2 data-i18n="su.tank.title"></h2>
+    <div id="su-tank"></div>
+    <div class="foot"><button class="btn" data-su-go="check" data-i18n="common.back"></button><button class="btn pri" id="su-tank-next" data-i18n="d.continue"></button></div>
+  </div>
+  <div class="su-page pnl dpanel" data-page="ha">
+    <h2 data-i18n="su.ha.title"></h2>
+    <p class="mut" data-i18n="su.ha.help"></p>
+    <form id="su-mqtt" class="form">
+      <label class="f"><span data-i18n="su.ha.host"></span> <input name="mqtt_host" autocomplete="off" spellcheck="false" placeholder="192.168.1.10">
+        <small data-i18n="su.ha.hostHelp"></small></label>
+      <label class="f"><span data-i18n="n.user"></span> <input name="mqtt_user" autocomplete="off" spellcheck="false"></label>
+      <label class="f"><span data-i18n="n.password"></span> <input name="mqtt_pass" type="password" autocomplete="new-password"></label>
+      <p class="status" id="su-mqtt-result"></p>
+      <small data-i18n-html="su.ha.none"></small>
+      <div class="foot"><button type="button" class="btn" data-su-go="tank" data-i18n="common.back"></button><button class="btn pri" id="su-mqtt-go" data-i18n="su.ha.test"></button></div>
+    </form>
+  </div>
+</section>
 
 <section id="tab-reading" class="tab on">
   <div class="home">
@@ -41,6 +76,14 @@
       <div class="row center"><button id="r-read" class="btn pri" data-i18n="r.read"></button></div>
     </div>
     <div class="side">
+      <div class="pnl todo" id="r-todo" hidden>
+        <h3><span id="r-todo-title"></span><span id="r-todo-count"></span></h3>
+        <ul class="todo-list" id="r-todo-list"></ul>
+      </div>
+      <div class="pnl todo" id="r-done" hidden>
+        <h3><span data-i18n="r.done.title"></span><button class="x" id="r-done-close" data-i18n-title="r.done.close">×</button></h3>
+        <p id="r-done-text" class="help"></p>
+      </div>
       <div class="pnl">
         <h3><span data-i18n="r.reading"></span><span id="r-state"></span></h3>
         <p id="r-status" class="status"></p>
@@ -161,18 +204,28 @@
             <button type="button" data-shape="table"><svg viewBox="0 0 48 36" aria-hidden="true"><path d="M8 30L18 22L28 14L40 6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M6 4v28h38" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".6"/></svg><span data-i18n="t.shape.table"></span></button>
           </div>
           <p class="help" id="t-shape-help"></p>
-          <p class="help" data-i18n-html="t.help"></p>
-          <div class="fld">
+          <input type="hidden" name="tank_by" value="cap">
+          <div class="seg" id="t-by" data-shapes="box hcyl vcyl"><span data-i18n="t.by"></span><button type="button" data-tank-by="cap" data-i18n="t.by.cap"></button><button type="button" data-tank-by="dim" data-i18n="t.by.dim"></button></div>
+          <div class="fld" data-by="cap">
+            <label class="f"><span data-i18n="t.capacity"></span> <input name="cap_l" type="number" step="1" min="0"></label>
+            <label class="f"><span id="t-cap-height"></span> <input name="cap_height_cm" type="number" step="0.1" min="0">
+              <small id="t-cap-proposed"></small></label>
+          </div>
+          <p class="help" data-by="dim" data-i18n-html="t.help"></p>
+          <div class="fld" data-by="dim">
             <label class="f" data-shapes="box hcyl"><span data-i18n="t.length"></span> <input name="tank_length_cm" type="number" step="0.1" min="0"></label>
             <label class="f" data-shapes="box"><span data-i18n="t.width"></span> <input name="tank_width_cm" type="number" step="0.1" min="0"></label>
             <label class="f" data-shapes="hcyl vcyl"><span data-i18n="t.diameter"></span> <input name="tank_diameter_cm" type="number" step="0.1" min="0"></label>
             <label class="f" data-shapes="box vcyl"><span data-i18n="t.height"></span> <input name="tank_height_cm" type="number" step="0.1" min="0"></label>
-            <label class="f"><span data-i18n="t.offset"></span> <input name="level_offset_cm" type="number" step="0.1"></label>
           </div>
           <label class="f wide" data-shapes="table"><span data-i18n="t.table"></span>
             <textarea name="tank_table_text" rows="8" spellcheck="false" placeholder="0 0&#10;40 520&#10;150 3000"></textarea>
             <small data-i18n="t.table.help"></small></label>
-          <small data-i18n="t.offset.help"></small>
+          <details class="more">
+            <summary data-i18n="common.more"></summary>
+            <label class="f"><span data-i18n="t.offset"></span> <input name="level_offset_cm" type="number" step="0.1">
+              <small data-i18n="t.offset.help"></small></label>
+          </details>
           <div class="capline">
             <div><div class="l" data-i18n="t.capacityLabel"></div><div class="v" id="t-capacity-value">–</div><small id="t-capacity"></small></div>
             <button class="btn pri" data-i18n="common.save"></button>
@@ -211,6 +264,7 @@
           <label class="f"><span data-i18n="n.port"></span> <input name="mqtt_port" type="number" min="1" max="65535"></label>
           <label class="f"><span data-i18n="n.user"></span> <input name="mqtt_user"></label>
           <label class="f"><span data-i18n="n.password"></span> <input name="mqtt_pass" type="password" autocomplete="new-password"></label>
+          <button type="button" id="n-mqtt-test" class="btn" data-i18n="n.test"></button>
           <label class="f"><span data-i18n="n.prefix"></span> <input name="mqtt_prefix"></label>
           <label class="check"><input name="ha_discovery" type="checkbox"> <span data-i18n="n.discoveryOn"></span></label>
           <label class="f"><span data-i18n="n.discovery"></span> <input name="discovery_prefix"></label>

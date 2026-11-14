@@ -2,6 +2,7 @@
 
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 #include "camera.h"
 #include "diag.h"
@@ -316,6 +317,44 @@ void mqttPublishPhoto() {
   if (!client.beginPublish(t.c_str(), p.size, true)) return;
   client.write(p.jpeg, p.size);
   client.endPublish();
+}
+
+bool mqttTest(const Config& c, String& error) {
+  if (c.mqtt_host.isEmpty()) {
+    error = "no MQTT server given";
+    return false;
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    error = "no Wi-Fi connection yet";
+    return false;
+  }
+  WiFiClient test_net;
+  PubSubClient test(test_net);
+  test.setServer(c.mqtt_host.c_str(), c.mqtt_port);
+  test.setSocketTimeout(5);
+  const String test_id = id + "-test";  // the running connection keeps its own id
+  const char* user = c.mqtt_user.isEmpty() ? nullptr : c.mqtt_user.c_str();
+  const char* pass = c.mqtt_pass.isEmpty() ? nullptr : c.mqtt_pass.c_str();
+  esp_task_wdt_reset();
+  const bool ok = test.connect(test_id.c_str(), user, pass);
+  esp_task_wdt_reset();
+  if (ok) {
+    test.disconnect();
+    logMsg("MQTT test: connected to %s:%u", c.mqtt_host.c_str(), c.mqtt_port);
+    return true;
+  }
+  switch (test.state()) {
+    case MQTT_CONNECT_FAILED: error = "MQTT server unreachable"; break;
+    case MQTT_CONNECTION_TIMEOUT: error = "MQTT server did not answer"; break;
+    case MQTT_CONNECT_BAD_PROTOCOL: error = "MQTT server refused the protocol version"; break;
+    case MQTT_CONNECT_BAD_CLIENT_ID: error = "MQTT server refused the client id"; break;
+    case MQTT_CONNECT_UNAVAILABLE: error = "MQTT server unavailable"; break;
+    case MQTT_CONNECT_BAD_CREDENTIALS:
+    case MQTT_CONNECT_UNAUTHORIZED: error = "MQTT server refused the user or password"; break;
+    default: error = "MQTT connection closed"; break;
+  }
+  logMsg("MQTT test: %s:%u, %s", c.mqtt_host.c_str(), c.mqtt_port, error.c_str());
+  return false;
 }
 
 bool mqttTakeReadRequest() {

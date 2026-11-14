@@ -68,6 +68,12 @@ const ERRORS = [
   [/search band too narrow/, "err.band"],
   [/no photo yet/, "err.noPhoto"],
   [/type the MQTT password again/, "err.mqttPass"],
+  [/MQTT server unreachable/, "err.mqttUnreachable"],
+  [/MQTT server did not answer/, "err.mqttTimeout"],
+  [/refused the user or password/, "err.mqttAuth"],
+  [/no MQTT server given/, "su.ha.noHost"],
+  [/no Wi-Fi connection yet/, "err.noWifi"],
+  [/^MQTT /, "err.mqtt"],
   [/firmware update in progress/, "err.updating"],
   [/tank table/, "err.table"],
   [/camera/, "err.camera"],
@@ -338,6 +344,7 @@ function renderStatus() {
 
   if (s.last_failure !== failures.id) loadFailures(s.last_failure);
   renderFailures();
+  renderTodo();
 
   if (s.photo) {
     const stamp = s.photo.taken_ms;
@@ -357,6 +364,40 @@ function drawReading() {
   drawOverlay($("#r-overlay"), $("#r-photo"), scene);
 }
 $("#r-photo").addEventListener("load", drawReading);
+
+// What the set-up still lacks, grouped as on the home page.
+const TODO_GROUPS = [["dial", ["photo", "frame", "grad", "check"]], ["tank", ["tank"]], ["ha", ["ha"]]];
+
+function renderTodo() {
+  if (!cfg || !status) return;
+  const missing = setup.missing();
+  const box = $("#r-todo");
+  box.hidden = !missing.length;
+  $("#r-done").hidden = !setup.finished || missing.length > 0;
+  $("#r-done-text").textContent = t("r.done.text", { name: status.name, n: Math.round(cfg.interval_s / 60) });
+  if (box.hidden) return;
+  $("#r-todo-title").textContent = t(missing.length > 1 ? "r.todo.title" : "r.todo.one", { n: missing.length });
+  $("#r-todo-count").textContent = t("r.todo.count", { k: SETUP.length - missing.length });
+  const list = $("#r-todo-list");
+  list.innerHTML = "";
+  for (const [group, steps] of TODO_GROUPS) {
+    const todo = steps.filter((x) => missing.includes(x));
+    const li = document.createElement("li");
+    li.className = todo.length ? "" : "done";
+    li.innerHTML = "<span><b></b><small></small></span>";
+    li.querySelector("b").textContent = t(`r.todo.${group}`);
+    li.querySelector("small").textContent = t(todo.length ? `r.todo.${group}.help` : "r.todo.doneItem");
+    if (todo.length) {
+      const b = document.createElement("button");
+      b.className = "btn";
+      b.textContent = t("r.todo.do");
+      b.addEventListener("click", () => setup.open(todo[0]));
+      li.append(b);
+    }
+    list.append(li);
+  }
+}
+$("#r-done-close").addEventListener("click", () => { setup.finished = false; renderTodo(); });
 
 // Refused readings kept by the device, with their photo.
 const failures = { id: undefined, list: [], fetchedAt: 0 };
@@ -411,6 +452,7 @@ async function refresh() {
     renderStatus();
     renderSystem();
     renderMenu();
+    setup.render();
   } catch (e) {
     status = null;
     renderLeds();
@@ -664,7 +706,7 @@ const dial = {
     $("#d-test").textContent = t(tested ? "d.check.again" : "d.check.read");
     $("#d-save").textContent = t(ok ? "d.check.yes" : "d.check.save");
     $("#d-save").classList.toggle("pri", ok || !tested);
-    $("#d-save").hidden = !this.dirty;  // nothing to save: the device already has it
+    $("#d-save").hidden = !this.dirty && !setup.active;  // nothing to save: the device already has it
     $("#d-test").classList.toggle("pri", false);
   },
 
@@ -1050,13 +1092,25 @@ const dial = {
     this.render();
   },
 
+  // The draft as far as it goes, saved when a set-up step is left: the
+  // graduations only once they make a valid scale.
+  partial() {
+    const d = this.draft;
+    this.reorient(this.readShot());
+    const out = { ...this.readShot(), ...pick(this.orient, ORIENT_KEYS),
+      roi: d.roi ? d.roi.map(Math.round) : [0, 0, 0, 0], pivot_mode: $("#d-mode").value };
+    if (d.pivot) [out.pivot_x, out.pivot_y] = d.pivot;
+    try { Object.assign(out, this.payload()); } catch { /* kept on screen only */ }
+    return out;
+  },
+
   async save() {
     this.reorient(this.readShot());
-    const body = this.payload();
+    const body = { ...this.payload(), setup: Object.fromEntries(DIAL_STEPS.map((x) => [x, "done"])) };
     await post("/api/config", body);
     cfg = await api("/api/config");
     this.dirty = false;
-    toast(t("d.saved"));
+    if (!setup.active) toast(t("d.saved"));  // the set-up shows its progress instead
     await refresh();
     this.render();
   },
@@ -1077,7 +1131,10 @@ $("#d-zoom-in").addEventListener("click", () => dial.zoomAt(ZOOMS.find((z) => z 
 $("#d-zoom-out").addEventListener("click", () => dial.zoomAt([...ZOOMS].reverse().find((z) => z < dial.zoom / 1.01) || 1));
 addEventListener("resize", () => { if (dial.draft) { dial.layout(); dial.draw(); } });
 $$("#d-steps button").forEach((b) => b.addEventListener("click", () => dial.show(b.dataset.step)));
-$$("#tab-dial [data-go]").forEach((b) => b.addEventListener("click", () => dial.show(b.dataset.go)));
+$$("#tab-dial [data-go]").forEach((b) => b.addEventListener("click", () => {
+  if (setup.active) busy(b, () => setup.advance(b.dataset.go));
+  else dial.show(b.dataset.go);
+}));
 $("#d-bubble").addEventListener("submit", (e) => { e.preventDefault(); dial.submitBubble(); });
 $("#d-bubble").addEventListener("keydown", (e) => { if (e.key === "Escape") { dial.closeBubble(false); dial.render(); } });
 $("#d-bubble-del").addEventListener("click", () => { const b = dial.bubble; dial.closeBubble(true); if (b) dial.remove(b.p); });
@@ -1097,7 +1154,10 @@ function showLed() {
   $$("#d-shot .manual-exposure").forEach((el) => el.classList.toggle("off", form.exposure_auto.checked));
 }
 $("#d-test").addEventListener("click", (e) => busy(e.target, () => dial.test()));
-$("#d-save").addEventListener("click", (e) => busy(e.target, () => dial.save()));
+$("#d-save").addEventListener("click", (e) => busy(e.target, async () => {
+  await dial.save();
+  if (setup.active) setup.next("check");
+}));
 $("#d-mode").addEventListener("change", () => dial.changed());
 
 // ---------- forms (tank, camera, network) ----------
@@ -1122,7 +1182,10 @@ function read(form) {
 }
 
 function renderForms() {
-  fill($("#f-tank"), { ...cfg, tank_table_text: (cfg.tank_table || []).map((r) => r.join(" ")).join("\n") });
+  const tank = tankModel(cfg, cfg.tank_table || []);
+  const height = cfg.tank_shape === "hcyl" ? cfg.tank_diameter_cm : cfg.tank_height_cm;
+  fill($("#f-tank"), { ...cfg, tank_table_text: (cfg.tank_table || []).map((r) => r.join(" ")).join("\n"),
+    tank_by: "cap", cap_l: tank.capacity > 0 ? Math.round(tank.capacity) : "", cap_height_cm: height || scaleEnd() || "" });
   fill($("#f-camera"), { ...cfg, interval_min: Math.round(cfg.interval_s / 60) });
   const net = $("#f-network");
   fill(net, { ...cfg, wifi_pass: "", mqtt_pass: "", ui_password: "", ui_password_clear: false,
@@ -1154,6 +1217,40 @@ function parseTable(text) {
   return { rows };
 }
 
+// Last graduation when the dial reads centimetres: the usual tank height.
+function scaleEnd() {
+  const v = (cfg?.points || []).map((x) => x[2]);
+  return cfg?.unit === "cm" && v.length >= 2 ? Math.max(...v) : 0;
+}
+
+// Tank settings of the form. "I know its capacity" turns the capacity and
+// the height into dimensions that give the same litres at every level.
+function tankValues(form) {
+  const v = read(form);
+  const cm3 = v.cap_l * 1000, h = v.cap_height_cm, ok = cm3 > 0 && h > 0;
+  const r2 = (x) => (ok ? Math.round(x * 100) / 100 : 0);
+  if (v.tank_by === "cap" && v.tank_shape === "box") {
+    const side = r2(Math.sqrt(cm3 / h));
+    Object.assign(v, { tank_length_cm: side, tank_width_cm: side, tank_height_cm: h });
+  } else if (v.tank_by === "cap" && v.tank_shape === "vcyl") {
+    Object.assign(v, { tank_diameter_cm: r2(Math.sqrt(4 * cm3 / (Math.PI * h))), tank_height_cm: h });
+  } else if (v.tank_by === "cap" && v.tank_shape === "hcyl") {
+    Object.assign(v, { tank_diameter_cm: h, tank_length_cm: r2(cm3 / (Math.PI * h * h / 4)) });
+  }
+  for (const k of ["tank_by", "cap_l", "cap_height_cm"]) delete v[k];
+  return v;
+}
+
+// What /api/config receives from the tank form, or a readable error.
+function tankPayload(form) {
+  const v = tankValues(form);
+  const parsed = parseTable(v.tank_table_text);
+  delete v.tank_table_text;
+  if (parsed.error && v.tank_shape === "table") throw new Error(t("t.table.invalid", { n: parsed.error }));
+  if (parsed.rows) v.tank_table = parsed.rows;
+  return v;
+}
+
 // Same formulas as gauge::Tank in the firmware.
 function tankModel(v, table) {
   const L = v.tank_length_cm, W = v.tank_width_cm, H = v.tank_height_cm, D = v.tank_diameter_cm;
@@ -1181,12 +1278,19 @@ function tankModel(v, table) {
 
 function renderCapacity() {
   const form = $("#f-tank");
-  const v = read(form);
-  $$("#t-shapes button").forEach((b) => b.classList.toggle("on", b.dataset.shape === v.tank_shape));
-  form.querySelectorAll("[data-shapes]").forEach((el) => {
-    el.hidden = !el.dataset.shapes.split(" ").includes(v.tank_shape);
+  const raw = read(form);
+  const by = raw.tank_shape === "table" ? "" : raw.tank_by;
+  $$("#t-shapes button").forEach((b) => b.classList.toggle("on", b.dataset.shape === raw.tank_shape));
+  $$("#t-by button").forEach((b) => b.classList.toggle("on", b.dataset.tankBy === by));
+  form.querySelectorAll("[data-shapes], [data-by]").forEach((el) => {
+    el.hidden = (el.dataset.shapes && !el.dataset.shapes.split(" ").includes(raw.tank_shape))
+      || (el.dataset.by && el.dataset.by !== by);
   });
-  $("#t-shape-help").textContent = t(`t.shape.${v.tank_shape}.help`);
+  $("#t-shape-help").textContent = t(`t.shape.${raw.tank_shape}.help`);
+  $("#t-cap-height").textContent = t(raw.tank_shape === "hcyl" ? "t.capDiameter" : "t.capHeight");
+  const end = scaleEnd();
+  $("#t-cap-proposed").textContent = end ? t("t.capProposed", { v: num(end) }) : "";
+  const v = tankValues(form);
   const parsed = parseTable(v.tank_table_text);
   const line = $("#t-capacity");
   const value = $("#t-capacity-value");
@@ -1197,7 +1301,7 @@ function renderCapacity() {
   }
   const tank = tankModel(v, parsed.rows || []);
   if (!tank.ready) {
-    line.textContent = t("t.incomplete");
+    line.textContent = t(by === "cap" ? "t.capIncomplete" : "t.incomplete");
   } else if (tank.capacity > 0) {
     value.innerHTML = `${bigNum(tank.capacity, 0)}<small> L</small>`;
     line.textContent = v.tank_shape === "box" ? t("t.perCm", { perCm: num(tank.volume(1), 2) })
@@ -1209,6 +1313,18 @@ function renderCapacity() {
 $("#f-tank").addEventListener("input", renderCapacity);
 $$("#t-shapes button").forEach((b) => b.addEventListener("click", () => {
   $("#f-tank").tank_shape.value = b.dataset.shape;
+  renderCapacity();
+}));
+$$("#t-by button").forEach((b) => b.addEventListener("click", () => {
+  const form = $("#f-tank");
+  const v = tankValues(form);
+  if (b.dataset.tankBy === "dim" && form.tank_by.value === "cap") fill(form, v);  // shows what the capacity gave
+  if (b.dataset.tankBy === "cap" && form.tank_by.value === "dim") {
+    const tank = tankModel(v, []);
+    fill(form, { cap_l: tank.capacity > 0 ? Math.round(tank.capacity) : "",
+      cap_height_cm: (v.tank_shape === "hcyl" ? v.tank_diameter_cm : v.tank_height_cm) || "" });
+  }
+  form.tank_by.value = b.dataset.tankBy;
   renderCapacity();
 }));
 
@@ -1234,13 +1350,7 @@ async function saveForm(e, transform = (v) => v) {
   });
 }
 
-$("#f-tank").addEventListener("submit", (e) => saveForm(e, (v) => {
-  const parsed = parseTable(v.tank_table_text);
-  delete v.tank_table_text;
-  if (parsed.error && v.tank_shape === "table") throw new Error(t("t.table.invalid", { n: parsed.error }));
-  if (parsed.rows) v.tank_table = parsed.rows;
-  return v;
-}));
+$("#f-tank").addEventListener("submit", (e) => saveForm(e, () => tankPayload(e.target)));
 $("#f-camera").addEventListener("submit", (e) => saveForm(e, (v) => {
   v.interval_s = Math.max(1, v.interval_min) * 60;
   delete v.interval_min;
@@ -1250,6 +1360,27 @@ $("#f-network").addEventListener("submit", (e) => saveForm(e, (v) => {
   for (const key of ["wifi_pass", "mqtt_pass", "ui_password", "ap_password"]) if (!v[key]) delete v[key];
   return v;
 }));
+// Server, port, user and password typed in `form`, for /api/mqtt/test.
+function mqttFields(form) {
+  const v = read(form);
+  const m = v.mqtt_host.trim().match(/^(.*?)(?::(\d+))?$/);
+  const out = { mqtt_host: m[1], mqtt_port: m[2] ? Number(m[2]) : v.mqtt_port || 1883, mqtt_user: v.mqtt_user.trim() };
+  if (v.mqtt_pass) out.mqtt_pass = v.mqtt_pass;
+  return out;
+}
+
+// Connects once with the typed settings; returns the translated error, "" when it worked.
+async function mqttTry(fields) {
+  if (!fields.mqtt_host) return t("su.ha.noHost");
+  const r = await post("/api/mqtt/test", fields);
+  return r.ok ? "" : deviceError(r.error);
+}
+
+$("#n-mqtt-test").addEventListener("click", (e) => busy(e.target, async () => {
+  const error = await mqttTry(mqttFields($("#f-network")));
+  toast(error || t("n.testOk"), Boolean(error));
+}));
+
 $("#n-scan").addEventListener("click", (e) => busy(e.target, async () => {
   const list = await api("/api/wifi/scan");
   const dl = $("#ssids");
@@ -1429,11 +1560,170 @@ $("#s-restart").addEventListener("click", (e) => busy(e.target, async () => {
   setTimeout(() => location.reload(), 10000);
 }));
 
+// ---------- first set-up ----------
+
+// Six steps, each done, put off ("later") or still to do. The first four are
+// the dial tab's; the tank and Home Assistant count as done once configured.
+const SETUP = ["photo", "frame", "grad", "check", "tank", "ha"];
+const DIAL_STEPS = SETUP.slice(0, 4);
+
+const setup = {
+  active: false,
+  page: null,       // "welcome" or a step
+  finished: false,  // everything got done during this visit: the home page says so
+
+  state(step) {
+    const saved = cfg?.setup?.[step];
+    const configured = step === "tank" ? tankModel(cfg, cfg.tank_table || []).ready
+      : step === "ha" ? Boolean(cfg.mqtt_host) : false;
+    return saved === "done" || configured ? "done" : saved === "later" ? "later" : "todo";
+  },
+  missing() { return SETUP.filter((x) => this.state(x) !== "done"); },
+
+  // On start: opens while a step was neither done nor put off.
+  autoOpen() {
+    if (!cfg || !status) return;
+    const todo = SETUP.filter((x) => this.state(x) === "todo");
+    if (!todo.length) return;
+    this.open(todo.length === SETUP.length ? "welcome" : todo[0]);
+  },
+
+  open(page) {
+    this.active = true;
+    this.finished = false;
+    document.body.classList.add("setup");
+    $("#setup").hidden = false;
+    this.go(page);
+  },
+
+  close() {
+    this.active = false;
+    document.body.classList.remove("setup");
+    $("#setup").hidden = true;
+    $("#sub-tank").append($("#f-tank"));
+    this.finished = !this.missing().length;
+    showTab("reading");
+    renderTodo();
+  },
+
+  go(page) {
+    this.page = page;
+    if (dial.bubble) dial.closeBubble(false);
+    const inDial = DIAL_STEPS.includes(page);
+    $$(".tab").forEach((x) => x.classList.toggle("on", inDial && x.id === "tab-dial"));
+    $$("#setup .su-page").forEach((x) => { x.hidden = x.dataset.page !== page; });
+    $("#su-bar").hidden = page === "welcome";
+    if (page === "tank") {
+      $("#su-tank").append($("#f-tank"));
+      renderForms();
+    } else {
+      $("#sub-tank").append($("#f-tank"));
+    }
+    if (page === "ha") {
+      const f = $("#su-mqtt");
+      fill(f, { mqtt_host: cfg.mqtt_host + (cfg.mqtt_port !== 1883 && cfg.mqtt_host ? `:${cfg.mqtt_port}` : ""),
+        mqtt_user: cfg.mqtt_user, mqtt_pass: "" });
+      f.mqtt_pass.placeholder = cfg.mqtt_pass_set ? t("n.unchanged") : "";
+      this.result("", "");
+    }
+    this.render();
+    if (inDial) {
+      dial.enter();
+      dial.show(page);
+    }
+    scrollTo(0, 0);
+  },
+
+  render() {
+    if (!this.active) return;
+    const i = SETUP.indexOf(this.page);
+    $("#su-prog").innerHTML = SETUP.map((x, k) => `<span class="${k === i ? "cur" : this.state(x)}"></span>`).join("");
+    $("#su-kick").textContent = i >= 0 ? `${t("su.step", { n: i + 1 })} · ${t(`su.n.${this.page}`)}` : "";
+    $("#su-list").innerHTML = SETUP.map((x, k) => `<li class="${this.state(x)}"><b>${this.state(x) === "done" ? "✓" : k + 1}</b>`
+      + `<span>${t(`su.n.${x}`)}<small>${t(`su.d.${x}`)}</small></span></li>`).join("");
+    const w = status?.wifi || {};
+    const line = $("#su-wifi");
+    line.textContent = w.connected
+      ? t("su.wifi.ok", { ssid: w.ssid, q: t(w.rssi > -60 ? "su.wifi.good" : w.rssi > -72 ? "su.wifi.fair" : "su.wifi.poor") })
+      : t("su.wifi.none");
+    line.classList.toggle("off", !w.connected);
+    $("#su-wifi-set").hidden = Boolean(w.connected);
+  },
+
+  result(text, cls) {
+    const r = $("#su-mqtt-result");
+    r.textContent = text;
+    r.className = `status ${cls}`;
+  },
+
+  // Saves `marks` (step -> state) with, on a dial step, the draft so far.
+  async save(marks, extra = {}) {
+    const body = { ...extra, setup: marks };
+    if (DIAL_STEPS.includes(this.page)) Object.assign(body, dial.partial());
+    await post("/api/config", body);
+    cfg = await api("/api/config");
+    if (body.points) dial.dirty = false;
+    renderForms();
+  },
+
+  // Next step that is not done after `after`, or the end.
+  next(after) {
+    const rest = SETUP.slice(SETUP.indexOf(after) + 1).find((x) => this.state(x) !== "done");
+    if (rest) this.go(rest);
+    else this.close();
+  },
+
+  // A dial step's own buttons: forward marks the step done.
+  async advance(to) {
+    if (SETUP.indexOf(to) > SETUP.indexOf(this.page)) await this.save({ [this.page]: "done" });
+    this.go(to);
+  },
+
+  // "Later": a dial step puts off the rest of the dial, other steps themselves.
+  async later() {
+    const steps = this.page === "welcome" ? SETUP.filter((x) => this.state(x) === "todo")
+      : DIAL_STEPS.includes(this.page) ? DIAL_STEPS.filter((x) => this.state(x) !== "done") : [this.page];
+    await this.save(Object.fromEntries(steps.map((x) => [x, "later"])));
+    if (this.page === "welcome") this.close();
+    else this.next(DIAL_STEPS.includes(this.page) ? "check" : this.page);
+  },
+
+  async saveTank() {
+    const v = tankPayload($("#f-tank"));
+    if (!tankModel(v, v.tank_table || []).ready) throw new Error($("#t-capacity").textContent || t("t.incomplete"));
+    await this.save({ tank: "done" }, v);
+    this.next("tank");
+  },
+
+  async saveMqtt() {
+    const fields = mqttFields($("#su-mqtt"));
+    this.result(t("su.ha.testing"), "");
+    const error = await mqttTry(fields);
+    if (error) return this.result(error, "err");
+    this.result(t("n.testOk"), "ok");
+    await this.save({ ha: "done" }, fields);
+    refresh();
+    this.next("ha");
+  },
+};
+
+$("#su-later").addEventListener("click", (e) => busy(e.target, () => setup.later()));
+$("#su-skip").addEventListener("click", (e) => busy(e.target, () => setup.later()));
+$("#su-start").addEventListener("click", () => setup.go(SETUP.find((x) => setup.state(x) !== "done") || "photo"));
+$("#su-wifi-set").addEventListener("click", () => { setup.close(); showTab("settings"); showSub("network"); });
+$$("[data-su-go]").forEach((b) => b.addEventListener("click", () => setup.go(b.dataset.suGo)));
+$("#su-tank-next").addEventListener("click", (e) => busy(e.target, () => setup.saveTank()));
+$("#su-mqtt").addEventListener("submit", (e) => {
+  e.preventDefault();
+  busy($("#su-mqtt-go"), () => setup.saveMqtt().catch((err) => setup.result(deviceError(err.message), "err")));
+});
+
 // ---------- language ----------
 
 function rerender() {
   applyI18n();
   dial.render();
+  setup.render();
   showLed();
   if (cfg) renderForms();
   loadLog();
@@ -1456,5 +1746,6 @@ applyI18n();
     toast(e.message, true);
   }
   await refresh();
+  setup.autoOpen();
   setInterval(refresh, 5000);
 })();

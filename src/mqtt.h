@@ -19,5 +19,8 @@ void mqttPublishUpdate();
 void mqttPublishPhoto();
 // True once connected since boot.
 bool mqttEverConnected();
+// Connects once with `c`'s server settings, then disconnects; on failure
+// `error` holds the broker's answer. Blocks up to about 10 s.
+bool mqttTest(const Config& c, String& error);
 // Set when Home Assistant pressed the "read now" button.
 bool mqttTakeReadRequest();

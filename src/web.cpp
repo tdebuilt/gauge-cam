@@ -159,6 +159,21 @@ void handleTest() {
   sendJson(200, doc);
 }
 
+// Tries the typed MQTT settings without saving them. As for a save, the
+// stored password only serves the stored server, port and user.
+void handleMqttTest() {
+  if (!authorized()) return;
+  JsonDocument body;
+  if (!parseBody(body)) return;
+  Config draft = config;
+  String error;
+  if (!draft.fromJson(body.as<JsonObjectConst>(), error)) return sendError(400, error);
+  JsonDocument doc;
+  doc["ok"] = mqttTest(draft, error);
+  if (error.length()) doc["error"] = error;
+  sendJson(200, doc);
+}
+
 void handleImage() {
   if (!authorized()) return;
   const Photo& p = lastPhoto();
@@ -299,6 +314,7 @@ void webBegin() {
   server.on("/api/capture", HTTP_POST, handleCapture);
   server.on("/api/read", HTTP_POST, handleRead);
   server.on("/api/test", HTTP_POST, handleTest);
+  server.on("/api/mqtt/test", HTTP_POST, handleMqttTest);
   server.on("/api/photo.jpg", HTTP_GET, handleImage);
   server.on("/api/failures", HTTP_GET, handleFailures);
   server.on("/api/failure.jpg", HTTP_GET, handleFailureImage);

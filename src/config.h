@@ -8,6 +8,10 @@
 
 #include "gauge.h"
 
+// Steps of the first set-up, in order.
+constexpr const char* kSetupSteps[] = {"photo", "frame", "grad", "check", "tank", "ha"};
+constexpr size_t kSetupCount = sizeof(kSetupSteps) / sizeof(kSetupSteps[0]);
+
 struct Config {
   // Device
   String name = "Gauge Cam";
@@ -69,6 +73,11 @@ struct Config {
   float tank_diameter_cm = 0;
   std::vector<std::pair<float, float>> tank_table;
   float level_offset_cm = 0;  // level when the gauge reads 0
+
+  // First set-up in the interface: bit i of each mask is step kSetupSteps[i],
+  // done or put off ("later"). A step in neither is still to do.
+  uint8_t setup_done = 0;
+  uint8_t setup_later = 0;
 
   bool dialReady() const { return pivot_x >= 0 && points.size() >= 2; }
   gauge::Tank tank() const;

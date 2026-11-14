@@ -70,15 +70,22 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
 
 1. Ouvre la [page de flash](https://tdebuilt.github.io/gauge-cam/), branche l'ESP32-CAM-MB et
    clique sur *Installer*.
-2. Règle le Wi-Fi quand la page le propose, puis ouvre l'appareil.
-3. Onglet **Cadran**, en quatre étapes : *Photo* (lumière et rotation), *Cadrage* (tirer les coins
-   autour du cadran ; le centre de l'aiguille est trouvé tout seul, un clic le corrige),
-   *Graduations* (choisir le modèle de jauge, puis cliquer les graduations dans l'ordre : la valeur
-   suivante est proposée toute seule ; un clic entre deux graduations ajoute un point et une bulle
-   demande sa valeur ; zoom à la molette, à deux doigts ou par +/− pour placer au plus juste),
-   *Vérification* (lecture d'essai : si la valeur est juste, *Oui, enregistrer*).
-4. Onglet **Réglages** : **Cuve** (forme et dimensions intérieures, ou table de jaugeage), puis
-   **Réseau et MQTT** (serveur MQTT).
+2. Règle le Wi-Fi quand la page le propose, puis *Visit device* : l'appareil ouvre sa **mise en
+   service**, six étapes qui peuvent chacune attendre (*Plus tard*) :
+   - *Photo* (lumière et rotation) ;
+   - *Cadrage* (tirer les coins autour du cadran ; le centre de l'aiguille est trouvé tout seul, un
+     clic le corrige) ;
+   - *Graduations* (choisir le modèle de jauge, puis cliquer les graduations dans l'ordre : la
+     valeur suivante est proposée toute seule ; un clic entre deux graduations ajoute un point et
+     une bulle demande sa valeur ; zoom à la molette, à deux doigts ou par +/− pour placer au plus
+     juste) ;
+   - *Vérification* (lecture d'essai : la valeur est-elle juste ?) ;
+   - *Cuve* (forme, puis capacité inscrite sur la plaque et hauteur, proposée à la fin de
+     l'échelle ; ou les dimensions intérieures, ou une table de jaugeage) ;
+   - *Home Assistant* (serveur MQTT, utilisateur et mot de passe ; *Tester et terminer*
+     n'enregistre qu'une connexion qui marche).
+3. Tant qu'une étape manque, l'onglet Niveau la liste avec un bouton *Faire*. Les mêmes réglages
+   restent dans les onglets **Cadran** et **Réglages**.
 
 Mise à jour ensuite : entité *Firmware* dans Home Assistant, Réglages → Système (*Rechercher une
 mise à jour*), ou à la main avec le fichier `gauge-cam.bin` de la
@@ -104,8 +111,10 @@ prise de vue non enregistrés), `POST /api/read`,
 `POST /api/test` (lit la dernière photo avec un réglage non enregistré), `GET /api/photo.jpg`,
 `GET /api/failures` et `GET /api/failure.jpg?id=` (lectures refusées), `GET /api/log`,
 `POST /api/update/check` et `POST /api/update/install` (version publiée sur GitHub),
-`GET /api/wifi/scan`, `POST /api/restart`, `POST /api/update` (firmware). Les mots de passe ne
-sont jamais renvoyés. Un mot de passe d'interface (utilisateur `admin`) est possible.
+`POST /api/mqtt/test` (une connexion avec des réglages MQTT non enregistrés), `GET /api/wifi/scan`,
+`POST /api/restart`, `POST /api/update` (firmware). La clé `setup` de la configuration porte les
+étapes de la mise en service (`photo`, `frame`, `grad`, `check`, `tank`, `ha`) marquées `done` ou
+`later` ; `null` remet une étape à faire. Les mots de passe ne sont jamais renvoyés. Un mot de passe d'interface (utilisateur `admin`) est possible.
 
 ## Développement
 

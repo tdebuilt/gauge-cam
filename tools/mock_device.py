@@ -10,7 +10,9 @@ C++ code through build/gauge_cli.
 
 POST /mock/level?v=40 redraws the dial at another level (to try the jump
 filter and the list of refused readings). The update check always finds a
-release v0.2.0; installing it takes a few seconds.
+release v0.2.0; installing it takes a few seconds. POST /api/mqtt/test really
+connects to the given broker. MOCK_NO_WIFI=1 plays a device that only runs
+its access point.
 """
 import copy
 import io
@@ -19,6 +21,7 @@ import os
 import subprocess
 import sys
 import math
+import socket
 import tempfile
 import threading
 import time
@@ -47,7 +50,10 @@ CONFIG = {
     "jpeg_quality": 10, "roi": [0, 0, 0, 0], "pivot_mode": "hub", "pivot_x": -1, "pivot_y": -1,
     "points": [], "unit": "cm", "min_contrast": 20, "tank_shape": "box", "tank_length_cm": 0,
     "tank_width_cm": 0, "tank_height_cm": 0, "tank_diameter_cm": 0, "tank_table": [], "level_offset_cm": 0,
+    "setup": {},
 }
+SETUP_STEPS = ("photo", "frame", "grad", "check", "tank", "ha")
+NO_WIFI = os.environ.get("MOCK_NO_WIFI") == "1"
 FRAME = {"QVGA": (320, 240), "VGA": (640, 480), "SVGA": (800, 600)}
 CONFIRMATIONS = 2
 FILTER = {"ref": None, "candidate": None, "pending": 0}  # same logic as gauge::JumpFilter
@@ -226,7 +232,8 @@ def public_config():
     return out
 
 
-def apply_config(body):
+def merged_config(body):
+    """CONFIG with `body` applied and checked, as the firmware's Config::fromJson."""
     nxt = copy.deepcopy(CONFIG)
     moved = any(k in body and body[k] != CONFIG[k] for k in ("mqtt_host", "mqtt_port", "mqtt_user"))
     if moved and CONFIG["mqtt_pass"] and not body.get("mqtt_pass") and not body.get("mqtt_pass_clear"):
@@ -238,6 +245,14 @@ def apply_config(body):
         elif key in SECRETS:
             if value:
                 nxt[key] = value
+        elif key == "setup":
+            for step, state in value.items():
+                if step not in SETUP_STEPS or state not in ("done", "later", None):
+                    raise ValueError("setup: steps are photo, frame, grad, check, tank, ha; states done, later or null")
+                if state:
+                    nxt["setup"][step] = state
+                else:
+                    nxt["setup"].pop(step, None)
         elif key in nxt:
             nxt[key] = value
     if nxt["pivot_mode"] not in ("hub", "fixed"):
@@ -264,11 +279,73 @@ def apply_config(body):
     if len(table) > 40 or any(len(r) != 2 for r in table) or any(
             b[0] <= a[0] or b[1] < a[1] for a, b in zip(table, table[1:])):
         raise ValueError("tank table: at most 40 rows, levels increasing, litres never decreasing")
+    return nxt
+
+
+def apply_config(body):
+    nxt = merged_config(body)
     restart = nxt["wifi_ssid"] != CONFIG["wifi_ssid"] or nxt["wifi_pass"] != CONFIG["wifi_pass"]
     CONFIG.clear()
     CONFIG.update(nxt)
     FILTER.update(ref=None, pending=0)
     return restart
+
+
+def take_reading(fresh=True):
+    if fresh:
+        capture(CONFIG)
+    r = read(CONFIG)
+    jump_filter(r)
+    STATE["attempt"] = r
+    log(f"Reading: {r['level']:.1f} {CONFIG['unit']}" if r["ok"] else f"Reading refused: {r['error']}")
+    if r["ok"]:
+        STATE["good"] = r
+    elif CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2:
+        keep_failure(r)
+    return r
+
+
+def mqtt_test(c):
+    """One MQTT 3.1.1 CONNECT with the settings of `c`, as mqttTest() in the firmware."""
+    if not c["mqtt_host"]:
+        return "no MQTT server given"
+    if NO_WIFI:
+        return "no Wi-Fi connection yet"
+
+    def field(text):
+        data = text.encode()
+        return len(data).to_bytes(2, "big") + data
+
+    flags, payload = 0x02, field("gauge-cam-mock01-test")
+    if c["mqtt_user"]:  # as PubSubClient: no password without a user
+        flags |= 0x80
+        payload += field(c["mqtt_user"])
+        if c["mqtt_pass"]:
+            flags |= 0x40
+            payload += field(c["mqtt_pass"])
+    rest = field("MQTT") + bytes([4, flags]) + (15).to_bytes(2, "big") + payload
+    length, n = b"", len(rest)
+    while True:
+        byte, n = n % 128, n // 128
+        length += bytes([byte | (0x80 if n else 0)])
+        if not n:
+            break
+    try:
+        with socket.create_connection((c["mqtt_host"], int(c["mqtt_port"])), timeout=3) as sock:
+            sock.settimeout(5)
+            sock.sendall(b"\x10" + length + rest)
+            answer = sock.recv(4)
+            if len(answer) == 4 and answer[3] == 0:
+                sock.sendall(b"\xe0\x00")  # DISCONNECT
+    except socket.timeout:
+        return "MQTT server did not answer"
+    except OSError:
+        return "MQTT server unreachable"
+    if len(answer) < 4 or answer[0] != 0x20:
+        return "MQTT connection closed"
+    return {0: "", 1: "MQTT server refused the protocol version", 2: "MQTT server refused the client id",
+            3: "MQTT server unavailable", 4: "MQTT server refused the user or password",
+            5: "MQTT server refused the user or password"}.get(answer[3], "MQTT connection closed")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -302,8 +379,9 @@ class Handler(BaseHTTPRequestHandler):
                 "reset_reason": "software" if UPDATE["restart_note"] else "poweron",
                 **({"restart_note": UPDATE["restart_note"]} if UPDATE["restart_note"] else {}),
                 "update": update_json(),
-                "wifi": {"connected": True, "ssid": CONFIG["wifi_ssid"], "ip": "127.0.0.1", "rssi": -61,
-                         "hostname": "gauge-cam-mock01", "ap": False},
+                "wifi": {"connected": not NO_WIFI, "ssid": "" if NO_WIFI else CONFIG["wifi_ssid"],
+                         "ip": "" if NO_WIFI else "127.0.0.1", "rssi": -61,
+                         "hostname": "gauge-cam-mock01", "ap": NO_WIFI},
                 "mqtt": {"configured": bool(CONFIG["mqtt_host"]), "connected": bool(CONFIG["mqtt_host"])},
                 **({"photo": {"width": STATE["photo_size"][0], "height": STATE["photo_size"][1],
                             "taken_ms": int(STATE["photo_at"] * 1000), "bytes": len(STATE["photo"]), "age_s": age}}
@@ -344,6 +422,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/config":
                 restart = apply_config(self.body())
+                # As appConfigChanged(): the next reading comes 5 s later.
+                if CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2:
+                    threading.Timer(5, take_reading).start()
                 return self.send(200, {"saved": True, "restart": restart})
             if path == "/api/capture":
                 draft = copy.deepcopy(CONFIG)
@@ -354,21 +435,16 @@ class Handler(BaseHTTPRequestHandler):
                 w, h = STATE["photo_size"]
                 return self.send(200, {"width": w, "height": h})
             if path == "/api/read":
-                if "photo=0" not in self.path:
-                    capture(CONFIG)
-                r = read(CONFIG)
-                jump_filter(r)
-                STATE["attempt"] = r
-                log(f"Reading: {r['level']:.1f} {CONFIG['unit']}" if r["ok"] else f"Reading refused: {r['error']}")
-                if r["ok"]:
-                    STATE["good"] = r
-                elif CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2:
-                    keep_failure(r)
-                return self.send(200, reading_json(r, CONFIG))
+                return self.send(200, reading_json(take_reading("photo=0" not in self.path), CONFIG))
             if path == "/api/test":
                 draft = copy.deepcopy(CONFIG)
                 draft.update({k: v for k, v in self.body().items() if k in draft})
                 return self.send(200, reading_json(read(draft), draft))
+            if path == "/api/mqtt/test":
+                draft = merged_config(self.body())
+                error = mqtt_test(draft)
+                log(f"MQTT test: {draft['mqtt_host']}:{draft['mqtt_port']}, {error or 'connected'}")
+                return self.send(200, {"ok": not error, **({"error": error} if error else {})})
             if path == "/mock/level":
                 global DIAL
                 DIAL = draw_oil_dial(float(self.path.split("v=")[-1]))[0]
