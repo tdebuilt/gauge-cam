@@ -1,7 +1,8 @@
 """Drawn oil tank level gauge, shaped like a common 0-150 cm cellar indicator.
 
-The pivot is off-centre, the scale is not linear and has no graduation
-between 0 and 40 cm, and a red reserve zone starts at 0. The picture gets
+The pivot is off-centre, the scale is not linear (tighter towards 0), the
+graduations 10, 20 and 30 cm carry no number and sit in a red reserve zone
+from 0 to 30 cm. Angles taken from a photo of an Afriso gauge. The picture gets
 uneven light, noise and blur so that it reads like a photo.
 
     from oil_dial import draw_oil_dial
@@ -17,9 +18,9 @@ PIVOT = (420, 400)
 FACE_CENTRE, FACE_RADIUS = (448, 340), 300
 TICK_RADIUS = 200  # where the calibration points are clicked
 # Value (cm) -> clock angle of the graduation, degrees.
-SCALE = [(0, 300), (40, 335), (50, 345), (60, 356), (70, 368), (80, 380), (90, 393),
+SCALE = [(0, 300), (10, 304), (20, 313), (30, 324), (40, 335), (50, 345), (60, 356), (70, 368), (80, 380), (90, 393),
          (100, 406), (110, 420), (120, 435), (130, 450), (140, 464), (150, 477)]
-RED_ZONE = (0, 20)  # cm
+RED_ZONE = (0, 30)  # cm
 
 
 def at(cx, cy, angle, r):
@@ -56,7 +57,7 @@ def draw_oil_dial(level, seed=1):
     draw.ellipse((fx - FACE_RADIUS, fy - FACE_RADIUS, fx + FACE_RADIUS, fy + FACE_RADIUS),
                  fill=(236, 234, 226))
 
-    # Red reserve zone, then the graduations (none between 0 and 40).
+    # Red reserve zone, then the graduations (10 to 30 cm inside it, unnumbered).
     a0, a1 = angle_of(RED_ZONE[0]), angle_of(RED_ZONE[1])
     steps = 40
     outer = [at(cx, cy, a0 + (a1 - a0) * i / steps, 228) for i in range(steps + 1)]

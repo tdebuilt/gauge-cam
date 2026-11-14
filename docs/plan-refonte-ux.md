@@ -17,7 +17,7 @@ Maquettes reconstruites par `build.py` et `build_aplus.py` ; elles ne touchent n
 | Mise en service | « Visit device » de la page d'installation, puis bienvenue et six étapes, chacune remise à plus tard : Photo, Cadrage, Graduations, Vérification, Cuve, Home Assistant |
 | Photo | Flash, rotation, miroir ; le reste sous « Plus de réglages » |
 | Cadrage | Un cadre à quatre coins (le `roi` actuel) ; centre trouvé par le mode `hub`, corrigeable d'un clic |
-| Graduations | Modèle de jauge (mazout 0–150 cm : 0, 40, 50 … 150 ; 0–100 % ; saisie libre), clics dans l'ordre, valeur suivante proposée, « Annuler le dernier » |
+| Graduations | Modèle de jauge (mazout 0–150 cm : 0, 10, 20 … 150 ; 0–100 % ; saisie libre), clics dans l'ordre, valeur suivante proposée, « Annuler le dernier » |
 | Vérification | Lecture d'essai (`/api/test`) : « L'appareil lit X. Est-ce ce que montre la jauge ? » ; « Non » ramène aux graduations |
 | Cuve | Forme et capacité de la plaque ; hauteur proposée à la fin de l'échelle ; dimensions calculées par l'interface. Dimensions et table de jaugeage restent possibles |
 | Home Assistant | Serveur, utilisateur, mot de passe ; « Tester et terminer » ne valide qu'une connexion réussie |
@@ -72,6 +72,13 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
   - « Enregistrer » seulement à l'étape Vérification, après la lecture d'essai ;
   - sans cadre enregistré, l'appareil lit toute la photo comme avant : `roi` reste `[0, 0, 0, 0]`
     tant que le cadre n'est pas touché.
+  - corrigé le même jour sur une photo nette de la jauge Afriso : le modèle mazout avait 13 valeurs
+    (0, 40, 50 … 150) et ignorait les traits sans chiffre de la zone rouge, 10, 20 et 30 cm. Entre 0 et
+    40 cm, l'échelle est plus serrée vers le bas, d'où jusqu'à 5 cm d'erreur. Le modèle a désormais
+    16 valeurs ; un cadran enregistré avec l'ancien modèle reste reconnu et demande 10, 20, 30.
+    Ces traits sont à quelques pixels l'un de l'autre : tant qu'une valeur du modèle reste à placer,
+    une pression à côté d'un point en pose un nouveau, seule une pression pile dessus (5 px) le prend.
+    Le cadran du simulateur a les mêmes traits et une zone rouge de 0 à 30 cm.
 
 ### 3. v0.4.0 — Mise en service
 
@@ -100,6 +107,7 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
     mêmes litres à tout niveau (côté carré, diamètre, ou longueur du cylindre couché) ;
   - bouton « Tester la connexion » dans Réglages → Réseau et MQTT ;
   - parcours mesuré : 26 gestes, contre 25 comptés sur la maquette (cadran, capacité, trois champs MQTT) ;
+    29 depuis le modèle à 16 valeurs ;
   - test MQTT : refus vérifié contre le CT 110 (mosquitto) par le simulateur, qui fait la même
     connexion en Python ; réussite vérifiée contre un faux serveur local ; la réussite réelle se
     fera sur l'appareil avec son compte MQTT.

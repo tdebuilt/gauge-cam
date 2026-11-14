@@ -73,12 +73,12 @@ def main(out_dir):
         lines.append(f"{name} {path} {' '.join(map(str, roi))} {mode} {pivot[0]:g} {pivot[1]:g} "
                      f"{expected:g} {tol:g} {len(points)} {pts}")
 
-    # Drawn oil tank gauge: off-centre pivot, nothing between 0 and 40, red zone 0-20.
+    # Drawn oil tank gauge: off-centre pivot, unnumbered 10-30 in a red zone 0-30.
     oil, pivot, oil_points = draw_oil_dial(100)
     click = (pivot[0] + PIVOT_CLICK_OFFSET[0], pivot[1] + PIVOT_CLICK_OFFSET[1])
     case("oil_hub", oil, (0, 0, 0, 0), "hub", click, 100, 2, oil_points)
     case("oil_fixed", oil, (0, 0, 0, 0), "fixed", pivot, 100, 2, oil_points)
-    for level in (0, 8, 15, 27, 40, 63, 118, 150):  # red zone and the stretch without graduations
+    for level in (0, 8, 15, 27, 40, 63, 118, 150):  # red zone (tighter graduations) and above
         img, _, _ = draw_oil_dial(level, seed=level)
         case(f"oil_{level}", img, (0, 0, 0, 0), "hub", click, level, 2, oil_points)
 

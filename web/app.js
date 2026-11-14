@@ -470,7 +470,9 @@ $("#r-read").addEventListener("click", (e) => busy(e.target, async () => {
 // Graduations printed on common gauges, in click order. "free": the user
 // types every value.
 const MODELS = {
-  oil: { values: [0, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150], unit: "cm" },
+  // "legacy": values the first version of the model did not have; a dial saved
+  // without them is still recognised, and they are asked for next.
+  oil: { values: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150], unit: "cm", legacy: [10, 20, 30] },
   pct: { values: [0, 25, 50, 75, 100], unit: "%" },
   free: { values: [], unit: null },
 };
@@ -549,14 +551,16 @@ const dial = {
     const saved = (cfg.points || []).map((a) => ({ x: a[0], y: a[1], v: a[2] }));
     const values = saved.map((p) => p.v);
     // The model whose printed values the saved points start with.
-    let model = saved.length ? "free" : "oil", count = 0;
+    let model = saved.length ? "free" : "oil", count = 0, placed = new Set();
     for (const name of ["oil", "pct"]) {
-      const list = MODELS[name].values;
+      const list = MODELS[name].values, legacy = MODELS[name].legacy || [];
       let n = 0;
-      while (n < list.length && values.includes(list[n])) n++;
-      if ((n >= 3 || n === list.length) && n > count) { model = name; count = n; }
+      while (n < list.length && (values.includes(list[n]) || legacy.includes(list[n]))) n++;
+      const hits = list.slice(0, n).filter((v) => values.includes(v));
+      if ((hits.length >= 3 || n === list.length) && hits.length > count) {
+        model = name; count = hits.length; placed = new Set(hits);
+      }
     }
-    const placed = new Set(MODELS[model].values.slice(0, count));
     const pts = saved.map((p) => {
       const seq = placed.has(p.v);
       placed.delete(p.v);
@@ -599,7 +603,8 @@ const dial = {
 
   template() { return MODELS[this.draft.model].values; },
   seqCount() { return this.draft.pts.filter((p) => !p.extra).length; },
-  nextValue() { return this.template()[this.seqCount()]; },
+  // First printed value not placed yet (a legacy dial lacks some in the middle).
+  nextValue() { return this.template().find((v) => !this.draft.pts.some((p) => !p.extra && p.v === v)); },
 
   isDone(step) {
     const d = this.draft;
@@ -973,10 +978,14 @@ const dial = {
         return;
       }
       this.changed();
-    } else if (g.kind === "point") {
+    } else if (g.kind === "point" && (g.moved || this.nextValue() === undefined
+        || Math.hypot(x - g.p.x, y - g.p.y) <= 5 / this.scale)) {
+      // Dragged, or tapped right on it. While printed values remain to be placed,
+      // a tap beside a point places the next one: graduations can be a few
+      // pixels apart (0 and 10 cm on an Afriso dial).
       if (g.moved) this.changed();
       else this.openBubble(g.p, false);
-    } else if (g.kind === "add") {
+    } else if (g.kind === "add" || g.kind === "point") {
       const next = this.nextValue();
       const p = { x, y, v: next === undefined ? NaN : next, extra: next === undefined };
       d.pts.push(p);
