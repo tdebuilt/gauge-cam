@@ -75,15 +75,20 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
    - *Photo* (lumière et rotation) ;
    - *Cadrage* (tirer les coins autour du cadran ; le centre de l'aiguille est trouvé tout seul, un
      clic le corrige) ;
-   - *Graduations* (choisir le modèle de jauge, puis cliquer les graduations dans l'ordre : la
-     valeur suivante est proposée toute seule ; un clic entre deux graduations ajoute un point et
-     une bulle demande sa valeur ; zoom à la molette, à deux doigts ou par +/− pour placer au plus
-     juste) ;
+   - *Graduations* (choisir le modèle de jauge : jauge de cuve en cm, un trait tous les 10 cm
+     jusqu'à la fin de son échelle, 0–100 %, ou tout autre cadran dont on tape les valeurs ; puis
+     cliquer les graduations dans l'ordre : la valeur suivante est proposée toute seule, *Pas de
+     trait à…* saute celle que le cadran n'a pas ; un clic entre deux graduations ajoute un point et
+     une bulle demande sa valeur ; un clic sur un point le corrige ou le supprime ; zoom à la
+     molette, à deux doigts ou par +/− pour placer au plus juste) ;
    - *Vérification* (lecture d'essai : la valeur est-elle juste ?) ;
    - *Cuve* (forme, puis capacité inscrite sur la plaque et hauteur, proposée à la fin de
-     l'échelle ; ou les dimensions intérieures, ou une table de jaugeage) ;
-   - *Home Assistant* (serveur MQTT, utilisateur et mot de passe ; *Tester et terminer*
-     n'enregistre qu'une connexion qui marche).
+     l'échelle ; ou les dimensions intérieures, ou une table de jaugeage ; *Ce n'est pas une cuve*
+     pour tout autre cadran) ;
+   - *Home Assistant* (nom de l'appareil, serveur MQTT, utilisateur et mot de passe ; *Tester et
+     terminer* n'enregistre qu'une connexion qui marche). Home Assistant tire du nom les
+     identifiants des entités à la première connexion : renommer l'appareil ensuite ne les change
+     pas.
 3. Tant qu'une étape manque, l'onglet Niveau la liste avec un bouton *Faire*. Les mêmes réglages
    restent dans les onglets **Cadran** et **Réglages**.
 

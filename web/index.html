@@ -44,12 +44,14 @@
   <div class="su-page pnl dpanel" data-page="tank">
     <h2 data-i18n="su.tank.title"></h2>
     <div id="su-tank"></div>
-    <div class="foot"><button class="btn" data-su-go="check" data-i18n="common.back"></button><button class="btn pri" id="su-tank-next" data-i18n="d.continue"></button></div>
+    <div class="foot"><button class="btn" data-su-go="check" data-i18n="common.back"></button><button class="btn" id="su-no-tank" data-i18n="su.tank.none"></button><button class="btn pri" id="su-tank-next" data-i18n="d.continue"></button></div>
   </div>
   <div class="su-page pnl dpanel" data-page="ha">
     <h2 data-i18n="su.ha.title"></h2>
     <p class="mut" data-i18n="su.ha.help"></p>
     <form id="su-mqtt" class="form">
+      <label class="f"><span data-i18n="n.name"></span> <input name="name" autocomplete="off" maxlength="40">
+        <small data-i18n="su.ha.nameHelp"></small></label>
       <label class="f"><span data-i18n="su.ha.host"></span> <input name="mqtt_host" autocomplete="off" spellcheck="false" placeholder="192.168.1.10">
         <small data-i18n="su.ha.hostHelp"></small></label>
       <label class="f"><span data-i18n="n.user"></span> <input name="mqtt_user" autocomplete="off" spellcheck="false"></label>
@@ -166,10 +168,12 @@
       </div>
       <div class="dstep" data-step="grad">
         <label><span data-i18n="d.model"></span>
-          <select id="d-model"><option value="oil" data-i18n="d.model.oil"></option><option value="pct" data-i18n="d.model.pct"></option><option value="free" data-i18n="d.model.free"></option></select></label>
+          <select id="d-model"><option value="tank" data-i18n="d.model.tank"></option><option value="pct" data-i18n="d.model.pct"></option><option value="free" data-i18n="d.model.free"></option></select></label>
+        <label id="d-end-box"><span data-i18n="d.end"></span> <input id="d-end" type="number" min="20" max="1000" step="10" inputmode="numeric"></label>
         <label id="d-unit-box"><span data-i18n="d.unit"></span> <input id="d-unit" size="6"></label>
         <h2 id="d-seq-title"></h2>
         <p class="mut" id="d-seq-help"></p>
+        <p><button class="btn" id="d-skip" hidden></button></p>
         <div class="chips" id="d-chips"></div>
         <div class="foot"><button class="btn" id="d-undo" data-i18n="d.undo"></button><button class="btn pri" data-go="check" id="d-to-check" data-i18n="d.continue"></button></div>
       </div>

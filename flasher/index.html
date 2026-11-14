@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>Gauge Cam</title>
-<meta name="description" content="Reads a needle gauge (oil tank level) with an ESP32-CAM and publishes it to Home Assistant over MQTT.">
+<meta name="description" content="Reads a needle gauge (a tank level, a pressure…) with an ESP32-CAM and publishes it to Home Assistant over MQTT.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23f5a524' stroke-width='2.4'/%3E%3Cpath d='M16 16l6-6' stroke='%23f5a524' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
 <script type="module" src="https://unpkg.com/esp-web-tools@10.5.2/dist/web/install-button.js?module"></script>
 <style>
@@ -169,8 +169,8 @@ footer { color: var(--mut); font-size: 13px; padding: 40px 0 32px; display: flex
 const T = {
   fr: {
     "nav.doc": "Documentation",
-    h1: "Votre jauge de mazout, lue toute seule.",
-    lead: "Un ESP32-CAM d'une dizaine d'euros photographie la jauge de la cuve, lit l'aiguille et envoie le niveau et les litres restants à Home Assistant.",
+    h1: "Votre jauge à aiguille, lue toute seule.",
+    lead: "Un ESP32-CAM d'une dizaine d'euros photographie le cadran, lit l'aiguille et envoie la valeur à Home Assistant. Sur une cuve à mazout, il donne aussi les litres restants.",
     install: "Installer sur l'ESP32-CAM",
     unsupported: "Ce navigateur ne sait pas parler au port USB : ouvre cette page dans <b>Chrome</b> ou <b>Edge</b>, sur ordinateur.",
     notAllowed: "Cette page doit être ouverte en HTTPS.",
@@ -182,7 +182,7 @@ const T = {
     "s1.t": "Brancher", s1: "L'ESP32-CAM sur sa carte ESP32-CAM-MB, puis le câble USB vers l'ordinateur.",
     "s2.t": "Installer", s2: "Le bouton ci-dessus, le port série, puis Installer. L'ancien contenu est effacé.",
     "s3.t": "Wi‑Fi", s3: "La page propose de régler le Wi‑Fi : choisis le réseau, saisis son mot de passe.",
-    "s4.t": "Mise en service", s4: "« Visit device » ouvre l'appareil : photo, cadran, cuve et Home Assistant, chaque étape remise à plus tard si besoin.",
+    "s4.t": "Mise en service", s4: "« Visit device » ouvre l'appareil : photo, cadran, cuve si c'en est une, nom et Home Assistant ; chaque étape peut attendre.",
     help: "En cas de souci",
     "io0.t": "La connexion échoue",
     io0: "<ol><li>Maintiens le bouton <b>IO0</b> de la carte MB enfoncé.</li><li>Appuie brièvement sur <b>RST</b>.</li><li>Relâche <b>IO0</b>, puis relance l'installation.</li></ol><p>Aucun port proposé : essaie un autre câble, beaucoup ne font que charger. Sous Windows, la carte MB demande parfois le pilote <b>CH340</b>.</p>",
@@ -194,8 +194,8 @@ const T = {
   },
   en: {
     "nav.doc": "Documentation",
-    h1: "Your oil gauge, read on its own.",
-    lead: "A ten-euro ESP32-CAM takes a picture of the tank gauge, reads the needle and sends the level and the litres left to Home Assistant.",
+    h1: "Your needle gauge, read on its own.",
+    lead: "A ten-euro ESP32-CAM takes a picture of the dial, reads the needle and sends the value to Home Assistant. On an oil tank, it gives the litres left too.",
     install: "Install on the ESP32-CAM",
     unsupported: "This browser cannot talk to the USB port: open this page in <b>Chrome</b> or <b>Edge</b>, on a computer.",
     notAllowed: "This page must be opened over HTTPS.",
@@ -207,7 +207,7 @@ const T = {
     "s1.t": "Plug in", s1: "The ESP32-CAM on its ESP32-CAM-MB board, then the USB cable to the computer.",
     "s2.t": "Install", s2: "The button above, the serial port, then Install. The old content is erased.",
     "s3.t": "Wi‑Fi", s3: "The page offers to set up Wi‑Fi: pick the network, type its password.",
-    "s4.t": "Set-up", s4: "“Visit device” opens the device: photo, dial, tank and Home Assistant, each step can wait.",
+    "s4.t": "Set-up", s4: "“Visit device” opens the device: photo, dial, tank if it is one, name and Home Assistant; each step can wait.",
     help: "If something goes wrong",
     "io0.t": "It cannot connect",
     io0: "<ol><li>Hold the <b>IO0</b> button of the MB board down.</li><li>Briefly press <b>RST</b>.</li><li>Release <b>IO0</b>, then start the installation again.</li></ol><p>No port offered: try another cable, many only charge. On Windows the MB board sometimes needs the <b>CH340</b> driver.</p>",

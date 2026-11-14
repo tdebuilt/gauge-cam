@@ -467,15 +467,22 @@ $("#r-read").addEventListener("click", (e) => busy(e.target, async () => {
 
 // ---------- dial tab ----------
 
-// Graduations printed on common gauges, in click order. "free": the user
-// types every value.
+// Graduations printed on common gauges, in click order. "tank": a mark every
+// 10 cm up to the end of the scale (Afriso and alike); "free": the user types
+// every value. A printed value missing from the dial is skipped.
 const MODELS = {
-  // "legacy": values the first version of the model did not have; a dial saved
-  // without them is still recognised, and they are asked for next.
-  oil: { values: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150], unit: "cm", legacy: [10, 20, 30] },
+  tank: { step: 10, unit: "cm" },
   pct: { values: [0, 25, 50, 75, 100], unit: "%" },
   free: { values: [], unit: null },
 };
+const TANK_END = 150;  // cm, the usual cellar gauge
+function modelValues(model, end) {
+  const m = MODELS[model];
+  if (!m.step) return m.values;
+  const out = [];
+  for (let v = 0; v <= end + 1e-9; v += m.step) out.push(Math.round(v));
+  return out;
+}
 const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
 const ZOOM_MAX = ZOOMS[ZOOMS.length - 1];
 
@@ -551,14 +558,19 @@ const dial = {
     const saved = (cfg.points || []).map((a) => ({ x: a[0], y: a[1], v: a[2] }));
     const values = saved.map((p) => p.v);
     // The model whose printed values the saved points start with.
-    let model = saved.length ? "free" : "oil", count = 0, placed = new Set();
-    for (const name of ["oil", "pct"]) {
-      const list = MODELS[name].values, legacy = MODELS[name].legacy || [];
-      let n = 0;
-      while (n < list.length && (values.includes(list[n]) || legacy.includes(list[n]))) n++;
-      const hits = list.slice(0, n).filter((v) => values.includes(v));
-      if ((hits.length >= 3 || n === list.length) && hits.length > count) {
+    // The model whose printed values the saved points use; printed values with
+    // no point were skipped (no such mark on this dial).
+    let model = saved.length ? "free" : "tank", end = TANK_END, skip = new Set(), placed = new Set(), count = 0;
+    for (const name of ["tank", "pct"]) {
+      if (saved.length && (cfg.unit || "cm") !== MODELS[name].unit) continue;
+      const top = name === "tank" ? Math.max(...values.filter((v) => v > 0 && v % 10 === 0)) : 100;
+      if (!Number.isFinite(top)) continue;
+      const list = modelValues(name, top);
+      const hits = list.filter((v) => values.includes(v));
+      if (hits.length >= 3 && values.includes(0) && values.includes(top) && hits.length > count) {
         model = name; count = hits.length; placed = new Set(hits);
+        end = name === "tank" ? top : end;
+        skip = new Set(list.filter((v) => !values.includes(v)));
       }
     }
     const pts = saved.map((p) => {
@@ -567,13 +579,15 @@ const dial = {
       return { ...p, extra: !seq };
     });
     // Template points first, in click order, so that undo removes the extras first.
-    const order = MODELS[model].values;
+    const order = modelValues(model, end);
     pts.sort((a, b) => (a.extra - b.extra) || (a.extra ? 0 : order.indexOf(a.v) - order.indexOf(b.v)));
     this.draft = {
       roi: cfg.roi && cfg.roi[2] > 0 ? [...cfg.roi] : null,
       pivot: cfg.pivot_x >= 0 ? [cfg.pivot_x, cfg.pivot_y] : null,
       pivotAuto: false,
       model,
+      end,
+      skip,
       pts,
       history: [...pts],
     };
@@ -601,9 +615,9 @@ const dial = {
     return this.draft.roi || [m, m, w - 2 * m, h - 2 * m];
   },
 
-  template() { return MODELS[this.draft.model].values; },
+  template() { return modelValues(this.draft.model, this.draft.end).filter((v) => !this.draft.skip.has(v)); },
   seqCount() { return this.draft.pts.filter((p) => !p.extra).length; },
-  // First printed value not placed yet (a legacy dial lacks some in the middle).
+  // First printed value neither placed nor skipped (a deleted point is asked again).
   nextValue() { return this.template().find((v) => !this.draft.pts.some((p) => !p.extra && p.v === v)); },
 
   isDone(step) {
@@ -658,6 +672,8 @@ const dial = {
     // graduations
     const free = d.model === "free";
     $("#d-unit-box").hidden = !free;
+    $("#d-end-box").hidden = d.model !== "tank";
+    if (document.activeElement !== $("#d-end")) $("#d-end").value = d.end;
     const next = this.nextValue();
     const title = $("#d-seq-title");
     if (free) {
@@ -679,6 +695,8 @@ const dial = {
       chips.append(c);
     }
     $("#d-undo").disabled = !d.history.length;
+    $("#d-skip").hidden = free || next === undefined;
+    if (next !== undefined) $("#d-skip").textContent = t("d.skip", { v: num(next) });
     $("#d-to-check").disabled = d.pts.length < 2;
 
     this.renderCheck();
@@ -1015,7 +1033,7 @@ const dial = {
     box.classList.toggle("left", p.x > px);
     const input = $("#d-bubble-value");
     input.value = Number.isFinite(p.v) ? String(p.v).replace(".", lang === "fr" ? "," : ".") : "";
-    $("#d-bubble-del").hidden = isNew || !p.extra;
+    $("#d-bubble-del").hidden = isNew;
     box.hidden = false;
     input.focus();
     input.select();
@@ -1047,13 +1065,33 @@ const dial = {
     const v = Number($("#d-bubble-value").value.trim().replace(",", "."));
     if ($("#d-bubble-value").value.trim() === "" || !Number.isFinite(v)) { $("#d-bubble-value").focus(); return; }
     b.p.v = v;
+    // A typed value is a printed one only if the model has it and no other point does.
+    b.p.extra = !this.template().includes(v) || this.draft.pts.some((q) => q !== b.p && !q.extra && q.v === v);
     this.closeBubble(true);
     this.changed();
   },
 
   undo() {
-    const p = this.draft.history.pop();
-    if (p) this.remove(p);
+    const d = this.draft, h = d.history.pop();
+    if (h && "skip" in h) { d.skip.delete(h.skip); this.changed(); } else if (h) this.remove(h);
+  },
+
+  // The dial has no mark for the value asked for: go on with the next one.
+  skipNext() {
+    const v = this.nextValue();
+    if (v === undefined) return;
+    this.draft.skip.add(v);
+    this.draft.history.push({ skip: v });
+    this.changed();
+  },
+
+  setEnd(value) {
+    const d = this.draft, end = Math.round(Number(value) / 10) * 10;
+    if (!(end >= 20 && end <= 1000)) { $("#d-end").value = d.end; return; }
+    d.end = end;
+    // Points past the new end stay as calibration points, typed ones.
+    for (const p of d.pts) if (!p.extra && p.v > end) p.extra = true;
+    this.changed();
   },
 
   setModel(model) {
@@ -1063,6 +1101,7 @@ const dial = {
     d.model = model;
     d.pts = [];
     d.history = [];
+    d.skip = new Set();
     this.changed();
   },
 
@@ -1148,6 +1187,8 @@ $("#d-bubble").addEventListener("submit", (e) => { e.preventDefault(); dial.subm
 $("#d-bubble").addEventListener("keydown", (e) => { if (e.key === "Escape") { dial.closeBubble(false); dial.render(); } });
 $("#d-bubble-del").addEventListener("click", () => { const b = dial.bubble; dial.closeBubble(true); if (b) dial.remove(b.p); });
 $("#d-undo").addEventListener("click", () => dial.undo());
+$("#d-skip").addEventListener("click", () => dial.skipNext());
+$("#d-end").addEventListener("change", (e) => dial.setEnd(e.target.value));
 $("#d-model").addEventListener("change", (e) => dial.setModel(e.target.value));
 $("#d-unit").addEventListener("input", () => dial.changed());
 $("#d-photo").addEventListener("click", () => dial.takePhoto());
@@ -1630,7 +1671,7 @@ const setup = {
     }
     if (page === "ha") {
       const f = $("#su-mqtt");
-      fill(f, { mqtt_host: cfg.mqtt_host + (cfg.mqtt_port !== 1883 && cfg.mqtt_host ? `:${cfg.mqtt_port}` : ""),
+      fill(f, { name: cfg.name, mqtt_host: cfg.mqtt_host + (cfg.mqtt_port !== 1883 && cfg.mqtt_host ? `:${cfg.mqtt_port}` : ""),
         mqtt_user: cfg.mqtt_user, mqtt_pass: "" });
       f.mqtt_pass.placeholder = cfg.mqtt_pass_set ? t("n.unchanged") : "";
       this.result("", "");
@@ -1710,7 +1751,9 @@ const setup = {
     const error = await mqttTry(fields);
     if (error) return this.result(error, "err");
     this.result(t("n.testOk"), "ok");
-    await this.save({ ha: "done" }, fields);
+    // The name goes with the first connection: Home Assistant derives the entity ids from it.
+    const name = $("#su-mqtt").name.value.trim();
+    await this.save({ ha: "done" }, name ? { ...fields, name } : fields);
     refresh();
     this.next("ha");
   },
@@ -1722,6 +1765,11 @@ $("#su-start").addEventListener("click", () => setup.go(SETUP.find((x) => setup.
 $("#su-wifi-set").addEventListener("click", () => { setup.close(); showTab("settings"); showSub("network"); });
 $$("[data-su-go]").forEach((b) => b.addEventListener("click", () => setup.go(b.dataset.suGo)));
 $("#su-tank-next").addEventListener("click", (e) => busy(e.target, () => setup.saveTank()));
+// A pressure gauge, a thermometer…: no litres to compute, the step is done.
+$("#su-no-tank").addEventListener("click", (e) => busy(e.target, async () => {
+  await setup.save({ tank: "done" });
+  setup.next("tank");
+}));
 $("#su-mqtt").addEventListener("submit", (e) => {
   e.preventDefault();
   busy($("#su-mqtt-go"), () => setup.saveMqtt().catch((err) => setup.result(deviceError(err.message), "err")));

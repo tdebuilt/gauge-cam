@@ -70,14 +70,17 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
    - *Photo* (light and rotation);
    - *Framing* (drag the corners around the dial; the needle centre is found by itself, click to
      correct it);
-   - *Scale* (pick the gauge model, then click the graduations in order: the next value comes by
-     itself; a click between two graduations adds a point and a bubble asks for its value; zoom with
-     the wheel, two fingers or +/− for precise placement);
+   - *Scale* (pick the gauge model: tank gauge in cm with a mark every 10 cm up to the end of its
+     scale, 0–100 %, or any other dial with typed values; then click the graduations in order: the
+     next value comes by itself, *No mark at…* skips one the dial lacks; a click between two
+     graduations adds a point and a bubble asks for its value; a click on a point corrects or
+     deletes it; zoom with the wheel, two fingers or +/− for precise placement);
    - *Check* (a test reading: is the value right?);
    - *Tank* (shape, then the capacity on its plate and the height, which defaults to the end of the
-     scale; or the inner dimensions, or a gauging table);
-   - *Home Assistant* (MQTT server, user and password; *Test and finish* only saves a connection
-     that works).
+     scale; or the inner dimensions, or a gauging table; *Not a tank* for any other dial);
+   - *Home Assistant* (device name, MQTT server, user and password; *Test and finish* only saves a
+     connection that works). Home Assistant builds the entity ids from the name at the first
+     connection: renaming the device later does not change them.
 3. Until every step is done, the Level tab lists what is missing, with a *Do it* button for each.
    The same settings stay in the **Dial** and **Settings** tabs.
 

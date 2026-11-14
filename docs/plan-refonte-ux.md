@@ -17,7 +17,7 @@ Maquettes reconstruites par `build.py` et `build_aplus.py` ; elles ne touchent n
 | Mise en service | « Visit device » de la page d'installation, puis bienvenue et six étapes, chacune remise à plus tard : Photo, Cadrage, Graduations, Vérification, Cuve, Home Assistant |
 | Photo | Flash, rotation, miroir ; le reste sous « Plus de réglages » |
 | Cadrage | Un cadre à quatre coins (le `roi` actuel) ; centre trouvé par le mode `hub`, corrigeable d'un clic |
-| Graduations | Modèle de jauge (mazout 0–150 cm : 0, 10, 20 … 150 ; 0–100 % ; saisie libre), clics dans l'ordre, valeur suivante proposée, « Annuler le dernier » |
+| Graduations | Modèle de jauge (jauge de cuve en cm, un trait tous les 10 cm jusqu'à la fin d'échelle choisie ; 0–100 % ; saisie libre), clics dans l'ordre, valeur suivante proposée, « Annuler le dernier » |
 | Vérification | Lecture d'essai (`/api/test`) : « L'appareil lit X. Est-ce ce que montre la jauge ? » ; « Non » ramène aux graduations |
 | Cuve | Forme et capacité de la plaque ; hauteur proposée à la fin de l'échelle ; dimensions calculées par l'interface. Dimensions et table de jaugeage restent possibles |
 | Home Assistant | Serveur, utilisateur, mot de passe ; « Tester et terminer » ne valide qu'une connexion réussie |
@@ -75,10 +75,22 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
   - corrigé le même jour sur une photo nette de la jauge Afriso : le modèle mazout avait 13 valeurs
     (0, 40, 50 … 150) et ignorait les traits sans chiffre de la zone rouge, 10, 20 et 30 cm. Entre 0 et
     40 cm, l'échelle est plus serrée vers le bas, d'où jusqu'à 5 cm d'erreur. Le modèle a désormais
-    16 valeurs ; un cadran enregistré avec l'ancien modèle reste reconnu et demande 10, 20, 30.
+    16 valeurs.
     Ces traits sont à quelques pixels l'un de l'autre : tant qu'une valeur du modèle reste à placer,
     une pression à côté d'un point en pose un nouveau, seule une pression pile dessus (5 px) le prend.
     Le cadran du simulateur a les mêmes traits et une zone rouge de 0 à 30 cm.
+  - puis, à la demande de l'utilisateur, pour toute jauge à aiguille et pas seulement le mazout :
+    - modèle « Jauge de cuve, en cm » : un trait tous les 10 cm jusqu'à une fin d'échelle choisie
+      (150 par défaut) ; « Pas de trait à … » saute une valeur que le cadran n'a pas ;
+    - un clic sur n'importe quel point le corrige ou le supprime ; un point du modèle supprimé est
+      redemandé ;
+    - au chargement, une valeur du modèle sans point est comptée comme sautée : un cadran enregistré
+      sans 10, 20, 30 reste complet ; le modèle n'est reconnu que si l'unité est le cm (le % pour
+      0–100 %) ;
+    - étape Cuve : « Ce n'est pas une cuve » la marque faite sans réglage ;
+    - étape Home Assistant : le nom de l'appareil, que Home Assistant utilise pour les identifiants
+      des entités à la première connexion ; parcours mesuré à 30 gestes avec le nom saisi ;
+    - page d'installation et textes : « jauge à aiguille », la cuve à mazout en exemple.
 
 ### 3. v0.4.0 — Mise en service
 
