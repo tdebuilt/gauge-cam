@@ -7,6 +7,9 @@ C++ code through build/gauge_cli.
 
     test/host/run.sh            # builds build/gauge_cli too
     python3 tools/mock_device.py [port]
+
+POST /mock/level?v=40 redraws the dial at another level (to try the jump
+filter and the list of refused readings).
 """
 import copy
 import io
@@ -27,12 +30,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, "web")
 CLI = os.path.join(ROOT, "build", "gauge_cli")
 TYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css"}
-SECRETS = ("wifi_pass", "mqtt_pass", "ui_password")
+SECRETS = ("wifi_pass", "mqtt_pass", "ui_password", "ap_password")
 
 CONFIG = {
     "name": "Gauge Cam", "lang": "fr", "wifi_ssid": "maison", "mqtt_host": "", "mqtt_port": 1883,
     "mqtt_user": "", "mqtt_prefix": "gauge-cam", "discovery_prefix": "homeassistant",
-    "wifi_pass": "secret", "mqtt_pass": "", "ui_password": "",
+    "ha_discovery": True, "wifi_pass": "secret", "mqtt_pass": "", "ui_password": "", "ap_password": "",
+    "samples": 3, "max_jump": 5,
     "interval_s": 3600, "framesize": "VGA", "vflip": False, "hmirror": False, "rotation": 0,
     "led_intensity": 128, "led_ms": 400, "cam_brightness": 0, "cam_contrast": 0,
     "jpeg_quality": 10, "roi": [0, 0, 0, 0], "pivot_mode": "hub", "pivot_x": -1, "pivot_y": -1,
@@ -40,7 +44,10 @@ CONFIG = {
     "tank_height_cm": 0, "level_offset_cm": 0,
 }
 FRAME = {"QVGA": (320, 240), "VGA": (640, 480), "SVGA": (800, 600)}
-STATE = {"photo": None, "photo_size": (0, 0), "photo_at": 0, "attempt": None, "good": None, "boot": time.time()}
+CONFIRMATIONS = 2
+FILTER = {"ref": None, "candidate": None, "pending": 0}  # same logic as gauge::JumpFilter
+FAILURES = []  # newest first, at most 4
+STATE = {"photo": None, "photo_size": (0, 0), "photo_at": 0, "failure_id": 0, "attempt": None, "good": None, "boot": time.time()}
 DIAL = draw_oil_dial(100)[0]
 TMP = tempfile.mkdtemp(prefix="gauge-cam-mock-")
 PPM = os.path.join(TMP, "photo.ppm")
@@ -97,6 +104,33 @@ def read(cfg):
     return out
 
 
+def jump_filter(r):
+    """Holds back a jump until two more readings agree (see main.cpp)."""
+    if not r["ok"]:
+        return
+    level, max_jump, f = r["level"], CONFIG["max_jump"], FILTER
+    if max_jump <= 0 or f["ref"] is None or abs(level - f["ref"]) <= max_jump:
+        f.update(ref=level, pending=0)
+        return
+    if f["pending"] and abs(level - f["candidate"]) <= max_jump / 2:
+        f["pending"] += 1
+    else:
+        f["pending"] = 1
+    f["candidate"] = level
+    if f["pending"] > CONFIRMATIONS:
+        f.update(ref=level, pending=0)
+        return
+    r.update(ok=False, suspect=True, error=(
+        f"implausible jump from {f['ref']:.1f} to {level:.1f} {CONFIG['unit']}, "
+        f"checking again ({f['pending']}/{CONFIRMATIONS + 1})"))
+
+
+def keep_failure(r):
+    STATE["failure_id"] += 1
+    FAILURES.insert(0, {"id": STATE["failure_id"], "reading": r, "photo": STATE["photo"]})
+    del FAILURES[4:]
+
+
 def reading_json(r, cfg):
     """Same shape as readingToJson() in the firmware."""
     if not r:
@@ -107,6 +141,8 @@ def reading_json(r, cfg):
            "percent": round(r["percent"], 1) if r.get("percent") is not None else None}
     if r.get("error") and not r["ok"]:
         out["error"] = r["error"]
+    if r.get("suspect"):
+        out["suspect"] = True
     if r.get("scale_ok"):
         d = {k: r[k] for k in ("cx", "cy", "hub_radius", "r_start", "r_end", "scale_start",
                                "scale_direction", "scale_span")}
@@ -141,6 +177,12 @@ def apply_config(body):
         raise ValueError("lang must be fr or en")
     if nxt["interval_s"] < 60:
         raise ValueError("interval_s must be at least 60")
+    if not 1 <= nxt["samples"] <= 5:
+        raise ValueError("samples must be between 1 and 5")
+    if nxt["max_jump"] < 0:
+        raise ValueError("max_jump must be 0 (off) or more")
+    if nxt["ap_password"] and not 8 <= len(nxt["ap_password"]) <= 63:
+        raise ValueError("the access point password needs 8 to 63 characters")
     if nxt["rotation"] not in (0, 90, 180, 270):
         raise ValueError("rotation must be 0, 90, 180 or 270")
     if nxt["framesize"] not in FRAME:
@@ -148,6 +190,7 @@ def apply_config(body):
     restart = nxt["wifi_ssid"] != CONFIG["wifi_ssid"] or nxt["wifi_pass"] != CONFIG["wifi_pass"]
     CONFIG.clear()
     CONFIG.update(nxt)
+    FILTER.update(ref=None, pending=0)
     return restart
 
 
@@ -181,9 +224,11 @@ class Handler(BaseHTTPRequestHandler):
                 "wifi": {"connected": True, "ssid": CONFIG["wifi_ssid"], "ip": "127.0.0.1", "rssi": -61,
                          "hostname": "gauge-cam-mock01", "ap": False},
                 "mqtt": {"configured": bool(CONFIG["mqtt_host"]), "connected": bool(CONFIG["mqtt_host"])},
-                **({"photo": {"width": STATE["photo_size"][0], "height": STATE["photo_size"][1], "bytes": len(STATE["photo"]), "age_s": age}}
+                **({"photo": {"width": STATE["photo_size"][0], "height": STATE["photo_size"][1],
+                            "taken_ms": int(STATE["photo_at"] * 1000), "bytes": len(STATE["photo"]), "age_s": age}}
                    if STATE["photo"] else {}),
                 "dial_ready": CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2,
+                "last_failure": STATE["failure_id"],
                 "next_read_s": 1800,
                 "attempt": reading_json(STATE["attempt"], CONFIG),
                 "good": reading_json(STATE["good"], CONFIG),
@@ -194,6 +239,15 @@ class Handler(BaseHTTPRequestHandler):
             if not STATE["photo"]:
                 return self.send(404, {"error": "no photo yet"})
             return self.send(200, STATE["photo"], "image/jpeg")
+        if path == "/api/failures":
+            return self.send(200, [{"id": f["id"], "photo": bool(f["photo"]), **reading_json(f["reading"], CONFIG)}
+                                   for f in FAILURES])
+        if path == "/api/failure.jpg":
+            wanted = self.path.split("id=")[-1]
+            for f in FAILURES:
+                if str(f["id"]) == wanted and f["photo"]:
+                    return self.send(200, f["photo"], "image/jpeg")
+            return self.send(404, {"error": "no such photo"})
         if path == "/api/wifi/scan":
             return self.send(200, [{"ssid": "maison", "rssi": -58, "open": False},
                                    {"ssid": "maison-iot", "rssi": -63, "open": False}])
@@ -220,14 +274,21 @@ class Handler(BaseHTTPRequestHandler):
                 if "photo=0" not in self.path:
                     capture(CONFIG)
                 r = read(CONFIG)
+                jump_filter(r)
                 STATE["attempt"] = r
                 if r["ok"]:
                     STATE["good"] = r
+                elif CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2:
+                    keep_failure(r)
                 return self.send(200, reading_json(r, CONFIG))
             if path == "/api/test":
                 draft = copy.deepcopy(CONFIG)
                 draft.update({k: v for k, v in self.body().items() if k in draft})
                 return self.send(200, reading_json(read(draft), draft))
+            if path == "/mock/level":
+                global DIAL
+                DIAL = draw_oil_dial(float(self.path.split("v=")[-1]))[0]
+                return self.send(200, {"ok": True})
             if path == "/api/restart":
                 return self.send(200, {"restart": True})
             if path == "/api/update":

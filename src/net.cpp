@@ -19,13 +19,19 @@ bool mdns_started = false;
 uint32_t down_since = 0;
 uint32_t up_since = 0;
 uint32_t last_retry = 0;
+uint32_t last_ap_try = 0;
 
+// Open while Wi-Fi has never worked (first set-up, mistyped password);
+// afterwards protected by ap_password, or not started at all without one.
 void startAp() {
+  const bool open = !config.wifi_verified;
+  if (!open && config.ap_password.isEmpty()) return;
   WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP(host.c_str());  // open: only up while the device is unconfigured or offline
+  WiFi.softAP(host.c_str(), open ? nullptr : config.ap_password.c_str());
   dns.start(53, "*", WiFi.softAPIP());
   ap_active = true;
-  Serial.printf("Access point %s on http://%s/\n", host.c_str(), WiFi.softAPIP().toString().c_str());
+  Serial.printf("Access point %s (%s) on http://%s/\n", host.c_str(), open ? "open" : "WPA2",
+                WiFi.softAPIP().toString().c_str());
 }
 
 void stopAp() {
@@ -57,6 +63,10 @@ void netLoop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!up_since) {
       up_since = now;
+      if (!config.wifi_verified) {
+        config.wifi_verified = true;
+        config.save();
+      }
       Serial.printf("Wi-Fi connected: http://%s/\n", WiFi.localIP().toString().c_str());
       if (!mdns_started && MDNS.begin(host.c_str())) {
         MDNS.addService("http", "tcp", 80);
@@ -69,7 +79,10 @@ void netLoop() {
   }
   up_since = 0;
   if (!down_since) down_since = now;
-  if (!ap_active && now - down_since > kApAfterMs) startAp();
+  if (!ap_active && now - down_since > kApAfterMs && now - last_ap_try > kApAfterMs) {
+    last_ap_try = now;
+    startAp();
+  }
   if (config.wifi_ssid.length() && now - last_retry > kRetryMs) {
     last_retry = now;
     WiFi.begin(config.wifi_ssid.c_str(), config.wifi_pass.c_str());
@@ -87,6 +100,7 @@ bool netConnect(const String& ssid, const String& pass) {
   }
   config.wifi_ssid = ssid;
   config.wifi_pass = pass;
+  config.wifi_verified = true;
   config.save();
   return true;
 }

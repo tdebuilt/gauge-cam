@@ -34,6 +34,11 @@
     <span id="r-times" class="muted"></span>
   </div>
   <div class="viewer"><div class="stage"><img id="r-photo" alt=""><canvas id="r-overlay"></canvas></div></div>
+  <div id="r-failures" hidden>
+    <h3 data-i18n="r.failures"></h3>
+    <p class="help" data-i18n="r.failures.help"></p>
+    <div id="r-failure-list" class="failures"></div>
+  </div>
 </section>
 
 <section id="tab-dial" class="tab">
@@ -113,6 +118,10 @@
     <label><span data-i18n="c.jpeg"></span> <input name="jpeg_quality" type="number" min="4" max="63"></label>
     <label><span data-i18n="c.minContrast"></span> <input name="min_contrast" type="number" min="0" max="255">
       <small data-i18n="c.minContrast.help"></small></label>
+    <label><span data-i18n="c.samples"></span> <input name="samples" type="number" min="1" max="5">
+      <small data-i18n="c.samples.help"></small></label>
+    <label><span data-i18n="c.maxJump"></span> <input name="max_jump" type="number" min="0" step="0.5">
+      <small data-i18n="c.maxJump.help"></small></label>
     <button class="primary" data-i18n="common.save"></button>
   </form>
 </section>
@@ -131,10 +140,14 @@
     <label><span data-i18n="n.user"></span> <input name="mqtt_user"></label>
     <label><span data-i18n="n.password"></span> <input name="mqtt_pass" type="password" autocomplete="new-password"></label>
     <label><span data-i18n="n.prefix"></span> <input name="mqtt_prefix"></label>
+    <label><input name="ha_discovery" type="checkbox"> <span data-i18n="n.discoveryOn"></span></label>
     <label><span data-i18n="n.discovery"></span> <input name="discovery_prefix"></label>
     <h3 data-i18n="n.access"></h3>
     <label><span data-i18n="n.uiPassword"></span> <input name="ui_password" type="password" autocomplete="new-password"></label>
     <label><input name="ui_password_clear" type="checkbox"> <span data-i18n="n.uiClear"></span></label>
+    <label><span data-i18n="n.apPassword"></span> <input name="ap_password" type="password" autocomplete="new-password" minlength="8" maxlength="63">
+      <small data-i18n="n.apPassword.help"></small></label>
+    <label><input name="ap_password_clear" type="checkbox"> <span data-i18n="n.apClear"></span></label>
     <button class="primary" data-i18n="common.save"></button>
   </form>
 </section>

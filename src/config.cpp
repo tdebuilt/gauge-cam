@@ -47,14 +47,18 @@ void Config::toJson(JsonObject out, bool with_secrets) const {
   out["mqtt_user"] = mqtt_user;
   out["mqtt_prefix"] = mqtt_prefix;
   out["discovery_prefix"] = discovery_prefix;
+  out["ha_discovery"] = ha_discovery;
   if (with_secrets) {
+    out["wifi_verified"] = wifi_verified;  // device state, stored but not editable
     out["ui_password"] = ui_password;
     out["wifi_pass"] = wifi_pass;
     out["mqtt_pass"] = mqtt_pass;
+    out["ap_password"] = ap_password;
   } else {
     out["ui_password_set"] = ui_password.length() > 0;
     out["wifi_pass_set"] = wifi_pass.length() > 0;
     out["mqtt_pass_set"] = mqtt_pass.length() > 0;
+    out["ap_password_set"] = ap_password.length() > 0;
   }
   out["interval_s"] = interval_s;
   out["framesize"] = framesize;
@@ -83,6 +87,8 @@ void Config::toJson(JsonObject out, bool with_secrets) const {
   }
   out["unit"] = unit;
   out["min_contrast"] = min_contrast;
+  out["samples"] = samples;
+  out["max_jump"] = max_jump;
   out["tank_length_cm"] = tank_length_cm;
   out["tank_width_cm"] = tank_width_cm;
   out["tank_height_cm"] = tank_height_cm;
@@ -99,9 +105,13 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   takeString(in, "mqtt_user", next.mqtt_user);
   takeString(in, "mqtt_prefix", next.mqtt_prefix);
   takeString(in, "discovery_prefix", next.discovery_prefix);
+  take(in, "ha_discovery", next.ha_discovery);
   takeSecret(in, "ui_password", next.ui_password);
   takeSecret(in, "wifi_pass", next.wifi_pass);
   takeSecret(in, "mqtt_pass", next.mqtt_pass);
+  takeSecret(in, "ap_password", next.ap_password);
+  // New Wi-Fi credentials have not been tried yet.
+  if (next.wifi_ssid != wifi_ssid || next.wifi_pass != wifi_pass) next.wifi_verified = false;
   take(in, "interval_s", next.interval_s);
   takeString(in, "framesize", next.framesize);
   take(in, "vflip", next.vflip);
@@ -135,6 +145,8 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   }
   takeString(in, "unit", next.unit);
   take(in, "min_contrast", next.min_contrast);
+  take(in, "samples", next.samples);
+  take(in, "max_jump", next.max_jump);
   take(in, "tank_length_cm", next.tank_length_cm);
   take(in, "tank_width_cm", next.tank_width_cm);
   take(in, "tank_height_cm", next.tank_height_cm);
@@ -155,6 +167,15 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   } else if (next.cam_brightness < -2 || next.cam_brightness > 2 ||
              next.cam_contrast < -2 || next.cam_contrast > 2) {
     error = "camera brightness and contrast must be between -2 and 2";
+  } else if (next.samples < 1 || next.samples > 5) {
+    error = "samples must be between 1 and 5";
+  } else if (next.max_jump < 0) {
+    error = "max_jump must be 0 (off) or more";
+  } else if (next.ap_password.length() && (next.ap_password.length() < 8 || next.ap_password.length() > 63)) {
+    error = "the access point password needs 8 to 63 characters";
+  } else if (next.discovery_prefix.length() == 0 || next.discovery_prefix.indexOf('#') >= 0 ||
+             next.discovery_prefix.indexOf('+') >= 0) {
+    error = "invalid discovery prefix";
   } else if (next.mqtt_prefix.length() == 0 || next.mqtt_prefix.indexOf('#') >= 0 ||
              next.mqtt_prefix.indexOf('+') >= 0) {
     error = "invalid MQTT prefix";
@@ -178,7 +199,9 @@ bool Config::load() {
   JsonDocument doc;
   if (deserializeJson(doc, buf.data(), len)) return false;
   String error;
-  return fromJson(doc.as<JsonObjectConst>(), error);
+  if (!fromJson(doc.as<JsonObjectConst>(), error)) return false;
+  wifi_verified = doc["wifi_verified"] | false;
+  return true;
 }
 
 bool Config::save() const {

@@ -71,8 +71,10 @@ void handleStatus() {
     doc["photo"]["height"] = p.height;
     doc["photo"]["bytes"] = p.size;
     doc["photo"]["age_s"] = (millis() - p.taken_ms) / 1000;
+    doc["photo"]["taken_ms"] = p.taken_ms;  // changes with every photo
   }
   doc["dial_ready"] = config.dialReady();
+  doc["last_failure"] = lastFailureId();
   doc["next_read_s"] = appNextReadInS();
   readingToJson(lastAttempt(), config, doc["attempt"].to<JsonObject>());
   readingToJson(lastGood(), config, doc["good"].to<JsonObject>());
@@ -148,6 +150,21 @@ void handleImage() {
   if (!p.size) return sendError(404, "no photo yet");
   server.sendHeader("Cache-Control", "no-store");
   server.send_P(200, "image/jpeg", reinterpret_cast<const char*>(p.jpeg), p.size);
+}
+
+void handleFailures() {
+  if (!authorized()) return;
+  JsonDocument doc;
+  failuresToJson(config, doc.to<JsonArray>());
+  sendJson(200, doc);
+}
+
+void handleFailureImage() {
+  if (!authorized()) return;
+  const Failure* f = findFailure(server.arg("id").toInt());
+  if (!f || !f->size) return sendError(404, "no such photo");
+  server.sendHeader("Cache-Control", "no-cache");  // ids start again at 1 after a restart
+  server.send_P(200, "image/jpeg", reinterpret_cast<const char*>(f->jpeg), f->size);
 }
 
 void handleScan() {
@@ -236,6 +253,8 @@ void webBegin() {
   server.on("/api/read", HTTP_POST, handleRead);
   server.on("/api/test", HTTP_POST, handleTest);
   server.on("/api/photo.jpg", HTTP_GET, handleImage);
+  server.on("/api/failures", HTTP_GET, handleFailures);
+  server.on("/api/failure.jpg", HTTP_GET, handleFailureImage);
   server.on("/api/wifi/scan", HTTP_GET, handleScan);
   server.on("/api/restart", HTTP_POST, handleRestart);
   server.on("/api/update", HTTP_POST, handleUploadDone, handleUpload);

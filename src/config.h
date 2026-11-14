@@ -17,12 +17,19 @@ struct Config {
   // Network
   String wifi_ssid;
   String wifi_pass;
+  // Set once the device joined wifi_ssid; until then the fallback access
+  // point stays open so that a typo in the password can be fixed.
+  bool wifi_verified = false;
+  // WPA2 password of the fallback access point (8 to 63 characters). Empty:
+  // no access point once Wi-Fi works; change Wi-Fi over USB instead.
+  String ap_password;
   String mqtt_host;
   uint16_t mqtt_port = 1883;
   String mqtt_user;
   String mqtt_pass;
   String mqtt_prefix = "gauge-cam";
   String discovery_prefix = "homeassistant";
+  bool ha_discovery = true;
 
   // Capture
   uint32_t interval_s = 3600;
@@ -44,6 +51,8 @@ struct Config {
   std::vector<gauge::Point> points;  // dial order
   String unit = "cm";
   float min_contrast = 20;
+  uint8_t samples = 3;  // photos per scheduled reading, the median is kept
+  float max_jump = 5;  // larger level change must be confirmed (0 = off)
 
   // Tank (rectangular), inner dimensions in cm
   float tank_length_cm = 0;

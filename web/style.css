@@ -77,5 +77,8 @@ table.points td:last-child { white-space: nowrap; text-align: right; }
 dl.info { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
 dl.info dt { color: var(--muted); }
 dl.info dd { margin: 0; font-variant-numeric: tabular-nums; }
+.failures { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.failures .card .viewer { margin-bottom: 6px; }
+.failures .card p { margin: 0; font-size: .9rem; }
 #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; max-width: 90vw; }
 #toast.err { background: var(--err); color: #fff; }

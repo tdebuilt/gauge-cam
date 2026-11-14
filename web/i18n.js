@@ -10,7 +10,7 @@ const I18N = {
   fr: {
     "lang.name": "Français",
     "tab.reading": "Lecture", "tab.dial": "Cadran", "tab.tank": "Cuve",
-    "tab.camera": "Caméra", "tab.network": "Réseau", "tab.system": "Système",
+    "tab.camera": "Mesure", "tab.network": "Réseau", "tab.system": "Système",
     "common.save": "Enregistrer",
 
     "r.level": "Niveau", "r.volume": "Volume", "r.percent": "Remplissage",
@@ -19,6 +19,9 @@ const I18N = {
     "r.ok": "Lecture réussie (contraste de l'aiguille {contrast}).",
     "r.last": "dernière lecture il y a {age}", "r.never": "aucune lecture réussie",
     "r.next": "prochaine dans {in}",
+    "r.failures": "Dernières lectures refusées",
+    "r.failures.help": "Les quatre dernières, avec leur photo, depuis le dernier démarrage.",
+    "r.failureAge": "il y a {age}", "r.failureRead": "lu : {value} {unit}", "r.noPhoto": "pas de photo",
 
     "conn.ap": "point d'accès", "conn.ok": "MQTT connecté", "conn.down": "MQTT déconnecté",
     "conn.none": "MQTT non réglé", "conn.offline": "hors ligne",
@@ -66,7 +69,11 @@ const I18N = {
     "c.jpeg": "Qualité JPEG (4 = meilleure)",
     "c.minContrast": "Contraste minimal de l'aiguille",
     "c.minContrast.help": "en dessous, la lecture est refusée (photo trop sombre)",
-    "c.moved": "La lumière, la rotation et la résolution se règlent dans l'onglet Cadran, à côté de la photo.",
+    "c.samples": "Photos par lecture",
+    "c.samples.help": "la valeur médiane est gardée : un reflet sur une photo ne fausse pas la lecture",
+    "c.maxJump": "Écart maximal sans confirmation",
+    "c.maxJump.help": "dans l'unité du cadran ; un écart plus grand avec la dernière lecture est revérifié 2 min plus tard et accepté seulement si les 2 lectures suivantes le confirment (remplissage). 0 = désactivé",
+    "c.moved": "La lumière, la rotation et la résolution de la caméra se règlent dans l'onglet Cadran, à côté de la photo.",
 
     "n.name": "Nom de l'appareil", "n.lang": "Langue des entités Home Assistant",
     "n.wifi": "Wi-Fi", "n.ssid": "Réseau", "n.scan": "Chercher les réseaux",
@@ -74,6 +81,10 @@ const I18N = {
     "n.user": "Utilisateur", "n.prefix": "Préfixe des topics", "n.discovery": "Préfixe de découverte",
     "n.access": "Accès à cette interface", "n.uiPassword": "Mot de passe (utilisateur admin)",
     "n.uiClear": "Supprimer le mot de passe",
+    "n.discoveryOn": "Découverte automatique dans Home Assistant",
+    "n.apPassword": "Mot de passe du point d'accès de secours",
+    "n.apPassword.help": "8 caractères au moins. Le point d'accès s'ouvre après 30 s sans Wi-Fi. Sans mot de passe, il ne s'ouvre plus une fois le Wi-Fi validé : on change alors le Wi-Fi par USB, depuis la page de flash.",
+    "n.apClear": "Supprimer le mot de passe du point d'accès",
     "n.unchanged": "inchangé", "n.nonePw": "aucun",
     "n.found": "{n} réseaux trouvés.", "n.open": "ouvert",
 
@@ -103,12 +114,13 @@ const I18N = {
     "err.band": "Graduations trop proches du centre : le centre est sans doute mal placé.",
     "err.noPhoto": "Pas encore de photo.",
     "err.camera": "Erreur de caméra : {error}",
+    "err.jump": "Saut improbable de {from} à {to} : nouvelle vérification dans 2 min ({n}/3).",
   },
 
   en: {
     "lang.name": "English",
     "tab.reading": "Reading", "tab.dial": "Dial", "tab.tank": "Tank",
-    "tab.camera": "Camera", "tab.network": "Network", "tab.system": "System",
+    "tab.camera": "Measurement", "tab.network": "Network", "tab.system": "System",
     "common.save": "Save",
 
     "r.level": "Level", "r.volume": "Volume", "r.percent": "Fill level",
@@ -117,6 +129,9 @@ const I18N = {
     "r.ok": "Reading succeeded (needle contrast {contrast}).",
     "r.last": "last reading {age} ago", "r.never": "no successful reading",
     "r.next": "next in {in}",
+    "r.failures": "Last refused readings",
+    "r.failures.help": "The last four, with their photo, since the last start.",
+    "r.failureAge": "{age} ago", "r.failureRead": "read: {value} {unit}", "r.noPhoto": "no photo",
 
     "conn.ap": "access point", "conn.ok": "MQTT connected", "conn.down": "MQTT disconnected",
     "conn.none": "MQTT not set", "conn.offline": "offline",
@@ -164,7 +179,11 @@ const I18N = {
     "c.jpeg": "JPEG quality (4 = best)",
     "c.minContrast": "Minimum needle contrast",
     "c.minContrast.help": "below it the reading is rejected (photo too dark)",
-    "c.moved": "Light, rotation and resolution are set in the Dial tab, next to the photo.",
+    "c.samples": "Photos per reading",
+    "c.samples.help": "the median value is kept: a reflection on one photo does not spoil the reading",
+    "c.maxJump": "Largest change without confirmation",
+    "c.maxJump.help": "in the dial unit; a larger change from the last reading is checked again 2 min later and accepted only if the next 2 readings confirm it (refill). 0 = off",
+    "c.moved": "The camera light, rotation and resolution are set in the Dial tab, next to the photo.",
 
     "n.name": "Device name", "n.lang": "Home Assistant entity language",
     "n.wifi": "Wi-Fi", "n.ssid": "Network", "n.scan": "Scan networks",
@@ -172,6 +191,10 @@ const I18N = {
     "n.user": "User", "n.prefix": "Topic prefix", "n.discovery": "Discovery prefix",
     "n.access": "Access to this interface", "n.uiPassword": "Password (user admin)",
     "n.uiClear": "Remove the password",
+    "n.discoveryOn": "Home Assistant automatic discovery",
+    "n.apPassword": "Fallback access point password",
+    "n.apPassword.help": "At least 8 characters. The access point opens after 30 s without Wi-Fi. Without a password it no longer opens once Wi-Fi works: change Wi-Fi over USB from the flasher page instead.",
+    "n.apClear": "Remove the access point password",
     "n.unchanged": "unchanged", "n.nonePw": "none",
     "n.found": "{n} networks found.", "n.open": "open",
 
@@ -201,6 +224,7 @@ const I18N = {
     "err.band": "Graduations too close to the centre: the centre is probably misplaced.",
     "err.noPhoto": "No photo yet.",
     "err.camera": "Camera error: {error}",
+    "err.jump": "Unlikely jump from {from} to {to}: checking again in 2 min ({n}/3).",
   },
 };
 

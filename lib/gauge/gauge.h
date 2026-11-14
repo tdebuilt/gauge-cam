@@ -91,6 +91,30 @@ Result readRoi(const Image& full, const Rect& roi, const Settings& settings);
 void brightnessFromRgb(const uint8_t* rgb, int width, int height,
                        const Rect& roi, std::vector<uint8_t>& out);
 
+// Rejects isolated jumps of the level (a reflection, a shadow taken for the
+// needle). A level further than max_jump from the last accepted one becomes a
+// candidate, accepted once `confirmations` further readings agree with it
+// (within max_jump / 2): a refill gets through after a few readings, a single
+// wrong one does not. max_jump <= 0 disables the filter.
+class JumpFilter {
+ public:
+  enum class Verdict { Accepted, Suspect, Confirmed };
+
+  Verdict feed(float level, float max_jump, int confirmations);
+  // Forgets the reference, e.g. after a calibration change.
+  void reset() { has_reference_ = false; pending_ = 0; }
+  bool hasReference() const { return has_reference_; }
+  float reference() const { return reference_; }
+  // Readings that agree with the current candidate so far (0: none).
+  int pending() const { return pending_; }
+
+ private:
+  bool has_reference_ = false;
+  float reference_ = 0;
+  float candidate_ = 0;
+  int pending_ = 0;
+};
+
 // Clockwise rotation by a multiple of 90 degrees. For 90 degrees the pixel
 // (x, y) of a width x height image lands on (height - 1 - y, x) of a
 // height x width image.

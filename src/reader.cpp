@@ -8,6 +8,9 @@ namespace {
 
 Reading attempt;
 Reading good;
+constexpr size_t kFailures = 4;
+Failure failures[kFailures];
+uint32_t failure_count = 0;
 
 // Decodes the JPEG and keeps the brightness (max channel) of every pixel.
 bool brightness(const Photo& p, std::vector<uint8_t>& out, String& error) {
@@ -72,6 +75,7 @@ Reading readPhoto(const Config& cfg) {
 void readingToJson(const Reading& r, const Config& cfg, JsonObject out) {
   out["ok"] = r.ok;
   if (r.error.length()) out["error"] = r.error;
+  if (r.suspect) out["suspect"] = true;
   out["age_s"] = r.at_ms ? (millis() - r.at_ms) / 1000 : -1;
   putNumber(out, "level", r.level, 1);
   out["unit"] = cfg.unit;
@@ -102,3 +106,37 @@ void storeReading(const Reading& r) {
   attempt = r;
   if (r.ok) good = r;
 }
+
+void keepFailure(const Reading& r, const uint8_t* jpeg, size_t size) {
+  Failure& slot = failures[failure_count % kFailures];
+  free(slot.jpeg);
+  slot = Failure();
+  slot.id = ++failure_count;
+  slot.reading = r;
+  if (jpeg && size) {
+    slot.jpeg = static_cast<uint8_t*>(ps_malloc(size));
+    if (slot.jpeg) {
+      memcpy(slot.jpeg, jpeg, size);
+      slot.size = size;
+    }
+  }
+}
+
+void failuresToJson(const Config& cfg, JsonArray out) {
+  for (size_t i = 0; i < kFailures && i < failure_count; ++i) {
+    const Failure& f = failures[(failure_count - 1 - i) % kFailures];
+    JsonObject o = out.add<JsonObject>();
+    o["id"] = f.id;
+    o["photo"] = f.size > 0;
+    readingToJson(f.reading, cfg, o);
+  }
+}
+
+const Failure* findFailure(uint32_t id) {
+  for (const Failure& f : failures) {
+    if (f.id && f.id == id) return &f;
+  }
+  return nullptr;
+}
+
+uint32_t lastFailureId() { return failure_count; }

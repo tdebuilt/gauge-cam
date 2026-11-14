@@ -369,6 +369,27 @@ int quarterTurns(int degrees) { return ((degrees / 90) % 4 + 4) % 4; }
 
 }  // namespace
 
+JumpFilter::Verdict JumpFilter::feed(float level, float max_jump, int confirmations) {
+  if (max_jump <= 0 || !has_reference_ || std::fabs(level - reference_) <= max_jump) {
+    has_reference_ = true;
+    reference_ = level;
+    pending_ = 0;
+    return Verdict::Accepted;
+  }
+  if (pending_ > 0 && std::fabs(level - candidate_) <= max_jump / 2) {
+    ++pending_;
+  } else {
+    pending_ = 1;
+  }
+  candidate_ = level;
+  if (pending_ > confirmations) {
+    reference_ = level;
+    pending_ = 0;
+    return Verdict::Confirmed;
+  }
+  return Verdict::Suspect;
+}
+
 void rotatePoint(float& x, float& y, int width, int height, int degrees) {
   for (int i = quarterTurns(degrees); i > 0; --i) {
     const float nx = height - 1 - y;

@@ -18,18 +18,25 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
   non-linear scales. Coloured marks (red zone) are not mistaken for the needle, and their values
   are read.
 - **Rectangular tank**: volume = level × length × width, fill = level / height.
+- **Plausibility filter**: each reading takes 3 photos and keeps the median; a level that jumps
+  further than 5 cm (adjustable) from the last one is checked again 2 minutes later and accepted
+  only once the next 2 readings agree, so a refill gets through and a stray reflection does not.
+  The last 4 refused readings stay visible with their photo in the Reading tab.
 - **Flash LED** lit before each photo; a reading whose needle contrast is too low (dark photo) is
   rejected and the last good value is kept.
 - **Capture settings next to the photo**, as in AI-on-the-edge: LED intensity, rotation (0, 90,
   180, 270°, for a camera mounted sideways), flips, resolution, brightness and contrast. Each change
   takes a new photo without saving anything; the outline, centre and points follow the rotation.
   The photo is rotated on the ESP32, so Home Assistant gets it upright too.
-- **Home Assistant MQTT discovery**: level, volume, fill, photo, "read now" button, reading status,
-  needle angle, contrast and Wi-Fi signal.
+- **Home Assistant MQTT discovery** (can be turned off, entities are then removed): level, volume,
+  fill, photo, "read now" button, reading status, needle angle, contrast and Wi-Fi signal. Announced
+  again whenever Home Assistant restarts.
 - **Web interface** in French and English (more languages: `web/i18n.js`), firmware update,
   configuration backup and restore.
-- **Browser flashing** (Chrome or Edge) with Wi-Fi set-up right after (Improv). Without Wi-Fi the
-  device opens a `gauge-cam-xxxxxx` access point with a captive portal.
+- **Browser flashing** (Chrome or Edge) with Wi-Fi set-up right after, over USB (Improv). As long as
+  Wi-Fi has never worked, the device also opens an open `gauge-cam-xxxxxx` access point with a
+  captive portal. Once Wi-Fi works, that fallback access point only opens (after 30 s without
+  Wi-Fi) if it was given a password; otherwise Wi-Fi is changed over USB from the flasher page.
 
 ## Hardware
 
@@ -59,12 +66,14 @@ Later updates: System tab, `gauge-cam.bin` file of the
 | `gauge-cam/<id>/image` | last JPEG photo (retained) |
 | `gauge-cam/<id>/availability` | `online` / `offline` |
 | `gauge-cam/<id>/cmd` | `read` triggers a reading |
+| `homeassistant/status` | `online` (Home Assistant restarted) announces the entities again |
 
 ## HTTP API
 
 `GET /api/status`, `GET|POST /api/config`, `POST /api/capture` (optional body: unsaved capture
 settings), `POST /api/read`,
 `POST /api/test` (reads the last photo with unsaved settings), `GET /api/photo.jpg`,
+`GET /api/failures` and `GET /api/failure.jpg?id=` (refused readings),
 `GET /api/wifi/scan`, `POST /api/restart`, `POST /api/update` (firmware). Passwords are never
 sent back. An interface password (user `admin`) can be set.
 

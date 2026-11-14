@@ -1,6 +1,9 @@
 // gauge-cam: reads a needle gauge (oil tank level) with an ESP32-CAM.
 #include <Arduino.h>
 
+#include <algorithm>
+#include <vector>
+
 #include "app.h"
 #include "camera.h"
 #include "config.h"
@@ -17,6 +20,9 @@ String device_id;
 bool camera_ok = false;
 uint32_t next_read_ms = 0;
 uint32_t restart_at_ms = 0;
+gauge::JumpFilter jump_filter;
+constexpr int kConfirmations = 2;  // readings that must agree with a jump
+constexpr uint32_t kRecheckMs = 120000;  // next reading after a suspect one
 
 void schedule(uint32_t in_ms) { next_read_ms = millis() + in_ms; }
 
@@ -38,16 +44,63 @@ bool appCapture(const Config& cfg, String& error) {
   return ok;
 }
 
-Reading appRead(bool fresh_photo) {
-  Reading r;
-  String error;
-  if (fresh_photo && !appCapture(config, error)) {
-    r.at_ms = millis();
-    r.error = error;
-  } else {
-    r = readPhoto(config);
+// Takes config.samples photos and keeps the reading of median level; a
+// majority of the photos must be readable.
+Reading readSamples() {
+  std::vector<Reading> ok;
+  Reading failure;
+  for (int i = 0; i < config.samples; ++i) {
+    String error;
+    if (!appCapture(config, error)) {
+      failure = Reading();
+      failure.at_ms = millis();
+      failure.error = error;
+      if (!camera_ok) break;
+      continue;
+    }
+    Reading r = readPhoto(config);
+    if (r.ok) {
+      ok.push_back(r);
+    } else {
+      failure = r;
+    }
   }
+  if (ok.size() < static_cast<size_t>(config.samples / 2 + 1)) {
+    if (config.samples > 1 && failure.error.length()) {
+      failure.error += " (" + String(ok.size()) + "/" + String(config.samples) + " photos read)";
+    }
+    return failure;
+  }
+  std::sort(ok.begin(), ok.end(), [](const Reading& a, const Reading& b) { return a.level < b.level; });
+  return ok[ok.size() / 2];
+}
+
+// Holds back a level that jumped since the last accepted one until the
+// following readings confirm it, and checks again soon.
+void applyJumpFilter(Reading& r) {
+  if (!r.ok) return;
+  const float before = jump_filter.reference();
+  if (jump_filter.feed(r.level, config.max_jump, kConfirmations) != gauge::JumpFilter::Verdict::Suspect) {
+    return;
+  }
+  r.ok = false;
+  r.suspect = true;
+  r.error = "implausible jump from " + String(before, 1) + " to " + String(r.level, 1) + " " +
+            config.unit + ", checking again (" + String(jump_filter.pending()) + "/" +
+            String(kConfirmations + 1) + ")";
+  schedule(kRecheckMs);
+}
+
+Reading appRead(bool fresh_photo) {
+  const uint32_t start = millis();
+  Reading r = fresh_photo ? readSamples() : readPhoto(config);
+  applyJumpFilter(r);
   storeReading(r);
+  if (!r.ok && config.dialReady()) {
+    const Photo& p = lastPhoto();
+    const bool photo_of_reading = p.size && (!fresh_photo || p.taken_ms >= start);
+    keepFailure(r, photo_of_reading ? p.jpeg : nullptr, photo_of_reading ? p.size : 0);
+  }
   if (r.ok) {
     Serial.printf("Reading: %.1f %s\n", r.level, config.unit.c_str());
   } else {
@@ -60,6 +113,7 @@ Reading appRead(bool fresh_photo) {
 
 void appConfigChanged(bool wifi_changed) {
   if (camera_ok) cameraApply(config);
+  jump_filter.reset();  // the calibration or the offset may have moved the level
   mqttReconfigure();
   schedule(5000);
   if (wifi_changed) appRestartSoon();

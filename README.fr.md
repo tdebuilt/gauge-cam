@@ -18,6 +18,10 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
   qui gère les échelles non linéaires (un cadran Afriso n'a aucune graduation entre 0 et 40 cm).
   Les marques colorées (zone rouge) ne sont pas prises pour l'aiguille, et leurs valeurs sont lues.
 - **Cuve parallélépipédique** : volume = niveau × longueur × largeur, remplissage = niveau / hauteur.
+- **Filtre de plausibilité** : chaque lecture prend 3 photos et garde la médiane ; un niveau qui
+  s'écarte de plus de 5 cm (réglable) de la lecture précédente est revérifié 2 minutes plus tard
+  et accepté seulement si les 2 lectures suivantes le confirment : un remplissage passe, un reflet
+  isolé non. Les 4 dernières lectures refusées restent visibles avec leur photo (onglet Lecture).
 - **LED du flash** allumée avant chaque photo ; lecture refusée si l'aiguille est trop peu
   contrastée (photo trop sombre), la dernière valeur bonne est gardée.
 - **Prise de vue réglée à côté de la photo**, comme dans AI-on-the-edge : intensité de la LED,
@@ -25,12 +29,16 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
   et contraste. Chaque changement reprend une photo sans rien enregistrer ; le contour, le centre et
   les points suivent la rotation. La photo est tournée sur l'ESP32 : Home Assistant la reçoit
   à l'endroit.
-- **Home Assistant par découverte MQTT** : niveau, volume, remplissage, photo, bouton « Lire
-  maintenant », état de la lecture, angle, contraste et signal Wi-Fi.
+- **Home Assistant par découverte MQTT** (désactivable, les entités sont alors retirées) : niveau,
+  volume, remplissage, photo, bouton « Lire maintenant », état de la lecture, angle, contraste et
+  signal Wi-Fi. Annoncées de nouveau à chaque redémarrage de Home Assistant.
 - **Interface web** en français et en anglais (autres langues : `web/i18n.js`), mise à jour du
   firmware, sauvegarde et restauration de la configuration.
-- **Flash par le navigateur** (Chrome ou Edge) et réglage du Wi-Fi juste après (Improv).
-  Sans Wi-Fi, point d'accès `gauge-cam-xxxxxx` et portail captif.
+- **Flash par le navigateur** (Chrome ou Edge) et réglage du Wi-Fi juste après, par USB (Improv).
+  Tant que le Wi-Fi n'a jamais fonctionné, l'appareil ouvre aussi un point d'accès ouvert
+  `gauge-cam-xxxxxx` avec portail captif. Une fois le Wi-Fi validé, ce point d'accès de secours ne
+  s'ouvre plus (après 30 s sans Wi-Fi) que s'il a reçu un mot de passe ; sinon le Wi-Fi se change
+  par USB depuis la page de flash.
 
 ## Matériel
 
@@ -62,12 +70,14 @@ Mise à jour ensuite : onglet Système, fichier `gauge-cam.bin` de la
 | `gauge-cam/<id>/image` | dernière photo JPEG (retenue) |
 | `gauge-cam/<id>/availability` | `online` / `offline` |
 | `gauge-cam/<id>/cmd` | `read` lance une lecture |
+| `homeassistant/status` | `online` (Home Assistant a redémarré) : les entités sont annoncées de nouveau |
 
 ## API HTTP
 
 `GET /api/status`, `GET|POST /api/config`, `POST /api/capture` (corps facultatif : réglages de
 prise de vue non enregistrés), `POST /api/read`,
 `POST /api/test` (lit la dernière photo avec un réglage non enregistré), `GET /api/photo.jpg`,
+`GET /api/failures` et `GET /api/failure.jpg?id=` (lectures refusées),
 `GET /api/wifi/scan`, `POST /api/restart`, `POST /api/update` (firmware). Les mots de passe ne
 sont jamais renvoyés. Un mot de passe d'interface (utilisateur `admin`) est possible.
 

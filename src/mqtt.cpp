@@ -13,6 +13,8 @@ PubSubClient client(net);
 String id;
 String base;  // <prefix>/<id>
 bool discovery_due = true;
+String announced_prefix;  // discovery prefix the entities were published under
+String ha_status_topic;  // <discovery prefix>/status, Home Assistant's birth message
 bool read_requested = false;
 uint32_t last_attempt_ms = 0;
 
@@ -42,6 +44,10 @@ void onMessage(char* t, uint8_t* payload, unsigned int len) {
   if (topic("cmd") == t && len == 4 && memcmp(payload, "read", 4) == 0) {
     read_requested = true;
   }
+  // Home Assistant restarted: announce the entities again.
+  if (ha_status_topic == t && len == 6 && memcmp(payload, "online", 6) == 0) {
+    discovery_due = true;
+  }
 }
 
 void addDevice(JsonObject doc) {
@@ -55,8 +61,12 @@ void addDevice(JsonObject doc) {
   doc["availability_topic"] = topic("availability");
 }
 
+String configTopic(const String& prefix, const char* component, const char* object) {
+  return prefix + "/" + component + "/" + id + "/" + object + "/config";
+}
+
 void publishConfig(const char* component, const char* object, JsonDocument& doc) {
-  const String t = config.discovery_prefix + "/" + component + "/" + id + "/" + object + "/config";
+  const String t = configTopic(config.discovery_prefix, component, object);
   if (doc.isNull()) {  // removes the entity
     client.publish(t.c_str(), "", true);
     return;
@@ -89,7 +99,32 @@ void sensor(const char* object, const char* name, const char* value_key,
   publishConfig("sensor", object, doc);
 }
 
+// Every entity this device may announce.
+constexpr struct {
+  const char* component;
+  const char* object;
+} kEntities[] = {
+    {"sensor", "level"}, {"sensor", "volume"}, {"sensor", "percent"}, {"sensor", "angle"},
+    {"sensor", "contrast"}, {"sensor", "rssi"}, {"sensor", "status"}, {"image", "photo"},
+    {"button", "read"},
+};
+
+// Empty retained configs: Home Assistant deletes the entities.
+void removeDiscovery(const String& prefix) {
+  for (const auto& e : kEntities) client.publish(configTopic(prefix, e.component, e.object).c_str(), "", true);
+}
+
 void publishDiscovery() {
+  if (announced_prefix.length() && announced_prefix != config.discovery_prefix) {
+    removeDiscovery(announced_prefix);
+  }
+  if (!config.ha_discovery) {
+    // Also clears what a previous boot announced before discovery was turned off.
+    removeDiscovery(config.discovery_prefix);
+    announced_prefix = "";
+    return;
+  }
+  announced_prefix = config.discovery_prefix;
   const bool cm = config.unit == "cm";
   sensor("level", label("level"), "level", config.unit.c_str(), cm ? "distance" : nullptr, false);
   sensor("volume", label("volume"), "volume_l", "L", "volume_storage", false, config.tankReady());
@@ -132,6 +167,8 @@ bool connect() {
   }
   client.publish(will.c_str(), "online", true);
   client.subscribe(topic("cmd").c_str());
+  ha_status_topic = config.discovery_prefix + "/status";
+  if (config.ha_discovery) client.subscribe(ha_status_topic.c_str());
   discovery_due = true;
   return true;
 }

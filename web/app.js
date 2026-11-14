@@ -51,6 +51,8 @@ async function busy(button, task) {
 
 // Translates the device error messages (kept in English in the firmware).
 const ERRORS = [
+  [/implausible jump from ([-\d.]+) to ([-\d.]+) (\S*), checking again \((\d+)\/\d+\)/, "err.jump",
+    (m) => ({ from: `${num(Number(m[1]))} ${m[3]}`, to: `${num(Number(m[2]))} ${m[3]}`, n: m[4] })],
   [/needle hub not found/, "err.hub"],
   [/needle contrast too low/, "err.contrast"],
   [/not in dial order/, "err.order"],
@@ -61,7 +63,10 @@ const ERRORS = [
 ];
 function deviceError(message) {
   if (!message) return "";
-  for (const [re, key] of ERRORS) if (re.test(message)) return t(key, { error: message });
+  for (const [re, key, params] of ERRORS) {
+    const m = message.match(re);
+    if (m) return t(key, params ? params(m) : { error: message });
+  }
   return message;
 }
 
@@ -222,16 +227,19 @@ function renderStatus() {
     line.className = "status ok";
   } else if (a.error) {
     line.textContent = deviceError(a.error);
-    line.className = "status err";
+    line.className = a.suspect ? "status warn" : "status err";
   } else {
     line.textContent = "";
   }
   const last = g.age_s >= 0 ? t("r.last", { age: duration(g.age_s) }) : t("r.never");
   $("#r-times").textContent = `${last} · ${t("r.next", { in: duration(s.next_read_s) })}`;
 
+  if (s.last_failure !== failures.id) loadFailures(s.last_failure);
+  renderFailures();
+
   if (s.photo) {
-    const stamp = Math.round(Date.now() / 1000 - s.photo.age_s);
-    if (Math.abs(stamp - photoStamp) > 2) {
+    const stamp = s.photo.taken_ms;
+    if (stamp !== photoStamp) {
       photoStamp = stamp;
       $("#r-photo").src = photoUrl();
     } else {
@@ -248,6 +256,53 @@ function drawReading() {
 }
 $("#r-photo").addEventListener("load", drawReading);
 
+// Refused readings kept by the device, with their photo.
+const failures = { id: undefined, list: [], fetchedAt: 0 };
+
+async function loadFailures(id) {
+  failures.id = id;
+  try {
+    failures.list = id ? await api("/api/failures") : [];
+    failures.fetchedAt = Date.now();
+  } catch {
+    failures.id = undefined;  // try again at the next refresh
+    return;
+  }
+  const box = $("#r-failure-list");
+  box.innerHTML = "";
+  for (const f of failures.list) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `<div class="viewer"><div class="stage"><img alt=""><canvas></canvas></div></div><p></p><small></small>`;
+    const img = card.querySelector("img");
+    if (f.photo) {
+      img.addEventListener("load", () => {
+        const scene = cfg ? configScene(cfg) : {};
+        scene.detail = f.detail;
+        drawOverlay(card.querySelector("canvas"), img, scene);
+      });
+      img.src = `/api/failure.jpg?id=${f.id}`;
+    } else {
+      card.querySelector(".viewer").remove();
+    }
+    box.append(card);
+  }
+  renderFailures();
+}
+
+function renderFailures() {
+  $("#r-failures").hidden = failures.list.length === 0;
+  const elapsed = (Date.now() - failures.fetchedAt) / 1000;
+  $$("#r-failure-list .card").forEach((card, i) => {
+    const f = failures.list[i];
+    card.querySelector("p").textContent = deviceError(f.error);
+    const parts = [t("r.failureAge", { age: duration(f.age_s + elapsed) })];
+    if (f.level !== null && f.level !== undefined) parts.push(t("r.failureRead", { value: num(f.level), unit: f.unit }));
+    if (!f.photo) parts.push(t("r.noPhoto"));
+    card.querySelector("small").textContent = parts.join(" · ");
+  });
+}
+
 async function refresh() {
   try {
     status = await api("/api/status");
@@ -261,7 +316,7 @@ async function refresh() {
 
 $("#r-read").addEventListener("click", (e) => busy(e.target, async () => {
   const r = await post("/api/read");
-  if (!r.ok) toast(deviceError(r.error), true);
+  if (!r.ok) toast(deviceError(r.error), !r.suspect);
   await refresh();
 }));
 
@@ -594,10 +649,12 @@ function renderForms() {
   fill($("#f-tank"), cfg);
   fill($("#f-camera"), { ...cfg, interval_min: Math.round(cfg.interval_s / 60) });
   const net = $("#f-network");
-  fill(net, { ...cfg, wifi_pass: "", mqtt_pass: "", ui_password: "", ui_password_clear: false });
+  fill(net, { ...cfg, wifi_pass: "", mqtt_pass: "", ui_password: "", ui_password_clear: false,
+    ap_password: "", ap_password_clear: false });
   net.wifi_pass.placeholder = cfg.wifi_pass_set ? t("n.unchanged") : "";
   net.mqtt_pass.placeholder = cfg.mqtt_pass_set ? t("n.unchanged") : "";
   net.ui_password.placeholder = cfg.ui_password_set ? t("n.unchanged") : t("n.nonePw");
+  net.ap_password.placeholder = cfg.ap_password_set ? t("n.unchanged") : t("n.nonePw");
   renderCapacity();
 }
 
@@ -629,7 +686,7 @@ $("#f-camera").addEventListener("submit", (e) => saveForm(e, (v) => {
   return v;
 }));
 $("#f-network").addEventListener("submit", (e) => saveForm(e, (v) => {
-  for (const key of ["wifi_pass", "mqtt_pass", "ui_password"]) if (!v[key]) delete v[key];
+  for (const key of ["wifi_pass", "mqtt_pass", "ui_password", "ap_password"]) if (!v[key]) delete v[key];
   return v;
 }));
 $("#n-scan").addEventListener("click", (e) => busy(e.target, async () => {

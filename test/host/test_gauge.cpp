@@ -38,6 +38,40 @@ void rotateCase(gauge::Settings& s, gauge::Rect& roi, int w, int h, int degrees)
          static_cast<int>(std::fabs(x1 - x0)) + 1, static_cast<int>(std::fabs(y1 - y0)) + 1};
 }
 
+// Unit checks of JumpFilter; returns the number of failures.
+int testJumpFilter() {
+  using V = gauge::JumpFilter::Verdict;
+  struct Step { float level; V expected; };
+  const std::vector<std::vector<Step>> scenarios = {
+      // Slow consumption, then one wrong reading, then normal again.
+      {{100, V::Accepted}, {99.5f, V::Accepted}, {40, V::Suspect}, {99.2f, V::Accepted}},
+      // Refill: confirmed by two more readings that agree.
+      {{40, V::Accepted}, {120, V::Suspect}, {120.5f, V::Suspect}, {120.2f, V::Confirmed},
+       {119.9f, V::Accepted}},
+      // Two different wrong readings do not confirm each other.
+      {{80, V::Accepted}, {20, V::Suspect}, {140, V::Suspect}, {30, V::Suspect}, {80.4f, V::Accepted}},
+  };
+  int failures = 0;
+  for (size_t i = 0; i < scenarios.size(); ++i) {
+    gauge::JumpFilter f;
+    for (size_t k = 0; k < scenarios[i].size(); ++k) {
+      const Step& step = scenarios[i][k];
+      if (f.feed(step.level, 5, 2) != step.expected) {
+        std::printf("FAIL jump filter scenario %zu step %zu (level %g)\n", i, k, step.level);
+        ++failures;
+      }
+    }
+  }
+  gauge::JumpFilter off;
+  off.feed(100, 0, 2);
+  if (off.feed(10, 0, 2) != V::Accepted) {
+    std::printf("FAIL jump filter: max_jump 0 must accept everything\n");
+    ++failures;
+  }
+  std::printf("%s jump filter\n", failures ? "FAIL" : "OK  ");
+  return failures;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -104,5 +138,6 @@ int main(int argc, char** argv) {
     }
   }
   std::printf("%d/%d cases within tolerance\n", total - failures, total);
+  failures += testJumpFilter();
   return failures ? 1 : 0;
 }
