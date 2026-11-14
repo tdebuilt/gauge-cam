@@ -1,0 +1,219 @@
+<section class="dir" id="A">
+<style>
+.dA { --bg:#f5f6f8; --card:#fff; --ink:#18202b; --mut:#647083; --line:#e1e5eb; --acc:#2456d6; --ok:#17804a; --warn:#b75d00;
+  font-family: Inter, system-ui, sans-serif; color: var(--ink); background: var(--bg); font-size: 15px; }
+.dA .hd { display:flex; align-items:center; gap: 12px; padding: 0 24px; height: 60px; background: var(--card); border-bottom: 1px solid var(--line); }
+.dA .logo { width: 26px; height: 26px; color: var(--ink); }
+.dA .hd b { font-weight: 600; font-size: 16px; }
+.dA .hd .name { color: var(--mut); }
+.dA .chips { margin-left: auto; display:flex; gap: 8px; align-items:center; }
+.dA .chip { display:inline-flex; align-items:center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: #eef1f5; color: var(--mut); }
+.dA .chip::before { content:""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.dA .seg2 { display:inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 13px; }
+.dA .seg2 span { padding: 4px 9px; color: var(--mut); }
+.dA .seg2 .on { background: var(--ink); color: #fff; }
+.dA .tabs { display:flex; gap: 2px; padding: 0 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+.dA .tabs button { font: inherit; border: 0; background: none; padding: 13px 14px 11px; color: var(--mut); border-bottom: 2px solid transparent; cursor: pointer; }
+.dA .tabs button.on { color: var(--ink); border-bottom-color: var(--acc); font-weight: 600; }
+.dA .main { padding: 22px 24px; }
+.dA .stats { display:grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; }
+.dA .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.dA .stat .l { color: var(--mut); font-size: 13px; }
+.dA .stat .v { font-size: 34px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.dA .stat .v small { font-size: 18px; color: var(--mut); font-weight: 500; }
+.dA .bar2 { height: 8px; border-radius: 4px; background: #e8ebf0; margin-top: 10px; overflow: hidden; }
+.dA .bar2 i { display:block; height: 100%; width: 70.5%; background: linear-gradient(90deg, #e5484d 0 9%, var(--acc) 9%); border-radius: 4px; }
+.dA .line { display:flex; align-items:center; gap: 12px; margin: 16px 0; }
+.dA .okdot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px #17804a22; }
+.dA .btn { font: inherit; padding: 9px 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; font-weight: 500; }
+.dA .btn.pri { background: var(--acc); border-color: var(--acc); color: #fff; }
+.dA .mut { color: var(--mut); }
+.dA .grid2 { display:grid; grid-template-columns: 1.25fr 1fr; gap: 16px; }
+.dA .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.dA .card h3 { margin: 0 0 10px; font-size: 15px; display:flex; justify-content: space-between; align-items: center; }
+.dA .card .ph { border-radius: 10px; }
+.dA .tog { font-size: 13px; color: var(--mut); display:flex; gap: 6px; align-items:center; font-weight: 500; }
+.dA .tog i { width: 30px; height: 18px; border-radius: 9px; background: #d4d9e1; position: relative; display:inline-block; }
+.dA .tog i::after { content:""; position:absolute; left: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+.dA dl { display:grid; grid-template-columns: max-content 1fr; gap: 9px 18px; margin: 0; font-size: 14px; }
+.dA dt { color: var(--mut); } .dA dd { margin: 0; }
+/* calibration */
+.dA .steps { display:flex; gap: 6px; align-items:center; margin-bottom: 14px; }
+.dA .steps button { font: inherit; font-size: 14px; display:flex; align-items:center; gap: 8px; padding: 7px 12px 7px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); cursor: pointer; color: var(--ink); }
+.dA .steps button em { font-style: normal; width: 20px; height: 20px; border-radius: 50%; background: #e8ebf0; font-size: 12px; display:grid; place-items:center; color: var(--mut); }
+.dA .steps button.done em { background: var(--ok); color: #fff; }
+.dA .steps button.on { border-color: var(--acc); box-shadow: 0 0 0 3px #2456d622; }
+.dA .steps button.on em { background: var(--acc); color: #fff; }
+.dA .cal { display:grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+.dA .cal .ph { border-radius: 12px; }
+.dA .hint { background: #2456d612; color: #1b3f9e; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 0 0 12px; }
+.dA table.pts { width: 100%; border-collapse: collapse; font-size: 14px; }
+.dA .pts td { padding: 5px 4px; border-bottom: 1px solid var(--line); }
+.dA .pts input { width: 90px; font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; }
+.dA .pts .dot { width: 9px; height: 9px; border-radius: 50%; background: #ffb020; display:inline-block; margin-right: 6px; }
+.dA .pts button { border: 0; background: none; color: var(--mut); cursor: pointer; font-size: 16px; }
+.dA .pts tr.new td { background: #2456d60d; }
+.dA .acc { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; font-weight: 600; font-size: 14px; display:flex; justify-content: space-between; }
+.dA .panel-foot { display:flex; gap: 8px; margin-top: 14px; }
+/* tank */
+.dA .shapes { display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 16px; }
+.dA .shapes button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 10px 6px 8px; cursor: pointer; color: var(--mut); display:flex; flex-direction: column; align-items:center; gap: 4px; }
+.dA .shapes svg { width: 42px; height: 30px; }
+.dA .shapes button.on { border-color: var(--acc); color: var(--acc); background: #2456d60a; box-shadow: 0 0 0 3px #2456d61c; }
+.dA .fld { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dA label.f { display:flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--mut); }
+.dA label.f input { font: inherit; color: var(--ink); padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfd; }
+.dA .capbox { text-align: center; padding: 26px 18px; }
+.dA .capbox .v { font-size: 40px; font-weight: 600; letter-spacing: -.02em; }
+/* mobile */
+.dA.m .hd { padding: 0 16px; height: 56px; }
+.dA.m .main { padding: 16px; padding-bottom: 90px; }
+.dA.m .stats { grid-template-columns: 1fr 1fr; }
+.dA.m .stat.wide { grid-column: span 2; }
+.dA.m .stat .v { font-size: 28px; }
+.dA .bnav { position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: var(--card); border-top: 1px solid var(--line); display:grid; grid-template-columns: repeat(5, 1fr); padding-bottom: 12px; }
+.dA .bnav button { font: inherit; font-size: 11px; border: 0; background: none; color: var(--mut); display:flex; flex-direction: column; align-items:center; justify-content: center; gap: 3px; cursor: pointer; }
+.dA .bnav button.on { color: var(--acc); font-weight: 600; }
+.dA .bnav svg { width: 22px; height: 22px; }
+/* flasher */
+.fA { font-family: Inter, system-ui, sans-serif; color: #18202b; background: #f5f6f8; font-size: 16px; }
+.fA .fhd { display:flex; align-items:center; gap: 10px; padding: 18px 64px; }
+.fA .fhd .logo { width: 28px; height: 28px; }
+.fA .fhd b { font-size: 17px; }
+.fA .fhd .gh { margin-left: auto; color: #647083; font-size: 14px; display:flex; gap: 18px; align-items:center; }
+.fA .hero { text-align: center; padding: 40px 64px 34px; }
+.fA .hero h1 { font-size: 40px; letter-spacing: -.025em; margin: 0 0 12px; font-weight: 600; }
+.fA .hero p { color: #647083; max-width: 620px; margin: 0 auto 26px; font-size: 18px; }
+.fA .inst { font: inherit; font-weight: 600; padding: 14px 30px; border-radius: 999px; border: 0; background: #2456d6; color: #fff; font-size: 17px; box-shadow: 0 6px 18px #2456d644; }
+.fA .ver { display:block; margin-top: 12px; color: #647083; font-size: 14px; }
+.fA .s3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 10px 64px; }
+.fA .s3 > div { background: #fff; border: 1px solid #e1e5eb; border-radius: 16px; padding: 20px; }
+.fA .s3 em { font-style: normal; display:grid; place-items:center; width: 30px; height: 30px; border-radius: 50%; background: #2456d614; color: #2456d6; font-weight: 600; margin-bottom: 10px; }
+.fA .s3 b { display:block; margin-bottom: 4px; }
+.fA .s3 span { color: #647083; font-size: 15px; }
+.fA .faq { margin: 22px 64px 40px; background: #fff; border: 1px solid #e1e5eb; border-radius: 16px; }
+.fA .faq div { padding: 15px 20px; border-bottom: 1px solid #e1e5eb; display:flex; justify-content: space-between; }
+.fA .faq div:last-child { border: 0; }
+.fA .faq span { color: #647083; }
+</style>
+<div class="dir-head">
+  <div><h2>A · Net<small>La même interface, mise au propre</small></h2>
+    <p>On garde les six onglets et le fonctionnement actuel. On corrige la hiérarchie : un chiffre principal, un état
+      clair, une photo sans repères, des étapes de réglage numérotées. Sur téléphone, une barre d'onglets en bas.</p></div>
+  <div class="pc"><h4>Pour</h4><ul><li>Chantier court, CSS et un peu de HTML</li><li>Aucun réapprentissage</li><li>Police système : rien à embarquer</li></ul></div>
+  <div class="pc"><h4>Contre</h4><ul><li>Reste générique, sans identité</li><li>Six onglets pour un appareil qu'on règle une fois</li><li>L'échelle reste un tableau loin de la photo</li></ul></div>
+</div>
+<div class="row">
+<div>
+<div class="frame" id="A-dev"><div class="bar"><i></i><i></i><i></i><span>gauge-cam-3f2a1c.local</span></div>
+<div class="fit"><div class="vp dA" data-w="1200" data-h="760"><div class="scroll">
+  <div class="hd">{{LOGO}}<b>Gauge Cam</b><span class="name">· Cuve mazout</span>
+    <div class="chips"><span class="chip">Wi-Fi −61 dBm</span><span class="chip">MQTT connecté</span><span class="seg2"><span class="on">FR</span><span>EN</span></span></div></div>
+  <nav class="tabs">
+    <button data-go="read" class="on">Lecture</button><button data-go="dial" id="A-t-dial">Cadran</button><button data-go="tank" id="A-t-tank">Cuve</button>
+    <button>Mesure</button><button>Réseau</button><button>Système</button></nav>
+  <div class="main">
+    <div class="screen on" data-screen="read">
+      <div class="stats">
+        <div class="stat"><div class="l">Remplissage</div><div class="v">70,5 <small>%</small></div><div class="bar2"><i></i></div></div>
+        <div class="stat"><div class="l">Volume</div><div class="v">3 116 <small>L</small></div><div class="l">sur 4 418 L</div></div>
+        <div class="stat"><div class="l">Niveau</div><div class="v">99,6 <small>cm</small></div><div class="l">sur 150 cm</div></div>
+      </div>
+      <div class="line"><span class="okdot"></span><span>Lecture réussie il y a 3 s · prochaine à 10:45</span><button class="btn pri" style="margin-left:auto">Lire maintenant</button></div>
+      <div class="grid2">
+        <div class="card"><h3>Dernière photo <span class="tog"><i></i>Repères</span></h3>{{PHOTO:live:#2456d6}}</div>
+        <div class="card"><h3>État</h3><dl>
+          <dt>Aiguille</dt><dd>contraste 103, net</dd><dt>Filtre</dt><dd>valeur cohérente avec la précédente</dd>
+          <dt>Home Assistant</dt><dd>publié à 10:15:02</dd><dt>Lectures refusées</dt><dd>aucune</dd>
+          <dt>Firmware</dt><dd>v0.1.0, à jour</dd></dl></div>
+      </div>
+    </div>
+    <div class="screen" data-screen="dial">
+      <div class="steps">
+        <button class="done" data-tool="roi"><em>✓</em>Contour</button><button class="done" data-tool="pivot"><em>✓</em>Centre</button>
+        <button class="done" data-tool="start"><em>✓</em>Début</button><button class="done" data-tool="end"><em>✓</em>Fin</button>
+        <button data-tool="point" id="A-tool-point" data-hint-text="Clique sur la graduation, puis saisis sa valeur dans la ligne ajoutée."><em>5</em>Points d'échelle</button>
+        <button class="btn" style="margin-left:auto">Nouvelle photo</button></div>
+      <div class="cal">
+        {{PHOTO:calib:#ffb020::pick}}
+        <div class="card">
+          <p class="hint" data-hint>Choisis une étape. Les étapes faites sont cochées.</p>
+          <table class="pts"><tbody>
+            <tr><td><i class="dot" style="background:#2ecc71"></i>Début</td><td><input value="0"></td><td></td></tr>
+            <tr><td><i class="dot"></i>Point 1</td><td><input value="40"></td><td><button>×</button></td></tr>
+            <tr><td><i class="dot"></i>Point 2</td><td><input value="50"></td><td><button>×</button></td></tr>
+            <tr><td><i class="dot"></i>Point 3</td><td><input value="60"></td><td><button>×</button></td></tr>
+            <tr><td><i class="dot"></i>…</td><td class="mut">8 autres</td><td></td></tr>
+            <tr><td><i class="dot" style="background:#d65cff"></i>Fin</td><td><input value="150"></td><td></td></tr>
+          </tbody></table>
+          <div class="acc">Prise de vue <span class="mut">▸</span></div>
+          <div class="panel-foot"><button class="btn">Tester</button><button class="btn pri" data-save id="A-save-dial">Enregistrer</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="screen" data-screen="tank">
+      <div class="grid2"><form class="card form">
+        <h3>Forme de la cuve</h3>
+        <div class="shapes">
+          <button type="button" data-shape="box">{{ICON_BOX}}Parallélépipède</button>
+          <button type="button" data-shape="hcyl" class="on">{{ICON_HCYL}}Cylindre couché</button>
+          <button type="button" data-shape="vcyl">{{ICON_VCYL}}Cylindre debout</button>
+          <button type="button" data-shape="table" id="A-shape-table">{{ICON_TABLE}}Table</button></div>
+        <div class="fld">
+          <label class="f" data-shapes="box hcyl">Longueur (cm)<input value="250"></label>
+          <label class="f" data-shapes="box" hidden>Largeur (cm)<input value="100"></label>
+          <label class="f" data-shapes="hcyl vcyl">Diamètre (cm)<input value="150"></label>
+          <label class="f" data-shapes="box vcyl" hidden>Hauteur (cm)<input value="150"></label>
+          <label class="f" data-shapes="table" hidden>Table niveau → litres<input value="0 0 · 40 520 · 150 3000"></label>
+          <label class="f">Décalage du niveau (cm)<input value="0"></label></div>
+        <div class="panel-foot"><button class="btn pri" data-save id="A-save-tank">Enregistrer</button></div>
+      </form>
+      <div class="card capbox"><div class="mut">Capacité</div><div class="v" data-cap>4 418 L</div><div class="mut">Le remplissage est le volume rapporté à la capacité.</div></div></div>
+    </div>
+  </div>
+</div></div></div></div>
+<p class="cap"><span>Appareil sur ordinateur : Lecture, Cadran (étape 5 puis clic sur la photo) et Cuve sont cliquables.</span><button data-big="A-dev">Agrandir</button></p>
+</div>
+<div>
+<div class="phone" id="A-mob"><div class="fit"><div class="vp dA m" data-w="390" data-h="800"><div class="scroll">
+  <div class="hd">{{LOGO}}<b>Cuve mazout</b><div class="chips"><span class="chip">OK</span></div></div>
+  <div class="main">
+    <div class="screen on" data-screen="read">
+      <div class="stats">
+        <div class="stat wide"><div class="l">Remplissage</div><div class="v">70,5 <small>%</small></div><div class="bar2"><i></i></div></div>
+        <div class="stat"><div class="l">Volume</div><div class="v">3 116 <small>L</small></div></div>
+        <div class="stat"><div class="l">Niveau</div><div class="v">99,6 <small>cm</small></div></div>
+      </div>
+      <div class="line"><span class="okdot"></span><span class="mut" style="font-size:14px">il y a 3 s · prochaine 10:45</span></div>
+      <button class="btn pri" style="width:100%">Lire maintenant</button>
+      <div class="card" style="margin-top:14px">{{PHOTO:live:#2456d6}}</div>
+    </div>
+    <div class="screen" data-screen="tank"><div class="card"><h3>Cuve</h3><p class="mut">Même formulaire que sur ordinateur, sur une colonne.</p></div></div>
+  </div>
+</div>
+<nav class="bnav">
+  <button data-go="read" class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 12l5-5" stroke="currentColor" stroke-width="2"/></svg>Lecture</button>
+  <button><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Cadran</button>
+  <button data-go="tank"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="6" fill="none" stroke="currentColor" stroke-width="2"/></svg>Cuve</button>
+  <button><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="2"/></svg>Réseau</button>
+  <button><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>Plus</button>
+</nav>
+</div></div></div>
+<p class="cap"><span>Téléphone : barre d'onglets en bas, « Plus » ouvre Mesure et Système.</span><button data-big="A-mob">Agrandir</button></p>
+</div>
+</div>
+<div class="frame" id="A-fl"><div class="bar"><i></i><i></i><i></i><span>tdebuilt.github.io/gauge-cam/</span></div>
+<div class="fit"><div class="vp fA" data-w="1200" data-h="820"><div class="scroll">
+  <div class="fhd">{{LOGO}}<b>Gauge Cam</b><div class="gh"><span>Documentation</span><span>GitHub</span><span>FR · EN</span></div></div>
+  <div class="hero"><h1>Le niveau de la cuve à mazout dans Home Assistant</h1>
+    <p>Un ESP32-CAM photographie la jauge, lit l'aiguille et publie le niveau, le volume et le remplissage par MQTT.</p>
+    <button class="inst">Installer sur l'ESP32-CAM</button><span class="ver">Version v0.1.0 · Chrome ou Edge sur ordinateur</span></div>
+  <div class="s3">
+    <div><em>1</em><b>Brancher</b><span>L'ESP32-CAM sur sa carte USB ESP32-CAM-MB, puis sur l'ordinateur.</span></div>
+    <div><em>2</em><b>Installer</b><span>Choisis le port série. S'il ne répond pas, maintiens IO0 en appuyant sur RST.</span></div>
+    <div><em>3</em><b>Régler le Wi-Fi</b><span>La page propose le réseau des objets connectés, puis ouvre l'appareil.</span></div>
+  </div>
+  <div class="faq"><div>Changer de Wi-Fi plus tard<span>+</span></div><div>Le point d'accès de secours<span>+</span></div><div>Mettre à jour un appareil installé<span>+</span></div></div>
+</div></div></div></div>
+<p class="cap"><span>Page d'installation sur GitHub Pages.</span><button data-big="A-fl">Agrandir</button></p>
+</section>

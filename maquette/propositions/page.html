@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gauge Cam — propositions de design</title>
+<style>
+{{FONTS}}
+:root { --ink:#1b1f24; --mut:#5d6573; --line:#dde1e7; --bg:#f3f4f6; --card:#fff; --acc:#2456d6; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin:0; font-family: Inter, system-ui, sans-serif; color:var(--ink); background:var(--bg); line-height:1.5; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+.top { padding-top: 40px; padding-bottom: 8px; }
+.top h1 { font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 2.1rem; margin: 0 0 6px; letter-spacing: -.02em; }
+.top p { color: var(--mut); margin: 0; max-width: 80ch; }
+.defects { display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0 8px; }
+.defect { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.defect b { display:block; margin-bottom: 4px; }
+.defect span { color: var(--mut); font-size: .9rem; }
+.jump { position: sticky; top: 0; z-index: 20; background: rgba(243,244,246,.92); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line); margin-top: 20px; }
+.jump .wrap { display:flex; gap: 6px; padding-top: 8px; padding-bottom: 8px; overflow-x: auto; }
+.jump a { color: var(--ink); text-decoration: none; padding: 6px 12px; border-radius: 999px; font-size: .9rem; white-space: nowrap; }
+.jump a:hover { background: #e4e7ec; }
+section.dir { padding: 36px 0 12px; border-bottom: 1px solid var(--line); }
+.dir-head { display:grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 20px; align-items: start; margin-bottom: 18px; }
+.dir-head h2 { font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 1.6rem; margin: 0; letter-spacing: -.01em; }
+.dir-head h2 small { display:block; font-family: Inter, sans-serif; font-weight: 500; font-size: .95rem; color: var(--mut); letter-spacing: 0; }
+.dir-head p { margin: 8px 0 0; }
+.pc h4 { margin: 0 0 4px; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); }
+.pc ul { margin: 0; padding-left: 18px; font-size: .92rem; }
+.row { display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; margin: 14px 0; }
+.cap { font-size: .85rem; color: var(--mut); margin: 6px 2px 0; display:flex; justify-content: space-between; gap: 10px; }
+.cap button { font: inherit; font-size: .8rem; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+/* Frames */
+.frame { background: #d5d9e0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(20,30,50,.12); }
+.frame .bar { height: 30px; background: #e9ebef; display:flex; align-items:center; gap: 6px; padding: 0 12px; }
+.frame .bar i { width: 10px; height: 10px; border-radius: 50%; background: #c4c8cf; display:block; }
+.frame .bar span { margin-left: 10px; flex: 1; max-width: 420px; background: #fff; border-radius: 6px; font-size: 12px; color: #667; padding: 2px 10px; }
+.fit { position: relative; overflow: hidden; }
+.vp { position: absolute; top: 0; left: 0; transform-origin: 0 0; overflow: hidden; }
+.vp > .scroll { position: absolute; inset: 0; overflow: auto; scroll-behavior: auto; }
+.phone { background: #111; border-radius: 34px; padding: 10px; box-shadow: 0 10px 30px rgba(20,30,50,.18); }
+.phone .fit { border-radius: 26px; }
+.frame.big, .phone.big { position: fixed; inset: 20px; z-index: 100; margin: 0 auto; }
+.phone.big { width: min(430px, 90vw); }
+.backdrop { position: fixed; inset: 0; background: rgba(10,14,20,.55); z-index: 99; display: none; }
+.backdrop.on { display: block; }
+.screen { display: none; }
+.screen.on { display: block; }
+/* Photo with overlay */
+.ph { position: relative; aspect-ratio: 525 / 456; background: #222 url({{PHOTO_IMG}}) center / cover no-repeat; overflow: hidden; }
+.ph .ov, .ph .marks { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ph .marks { pointer-events: none; }
+.ph[data-pick] { cursor: crosshair; }
+.mk { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #ffb020; border: 2px solid #111; }
+.toast { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1b1f24; color: #fff; padding: 8px 16px; border-radius: 10px; font-size: 14px; z-index: 50; }
+/* Compare */
+table.cmp { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; font-size: .92rem; }
+table.cmp th, table.cmp td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.cmp thead th { background: #e9ecf1; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--mut); }
+table.cmp td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reco { background: var(--card); border: 2px solid var(--acc); border-radius: 14px; padding: 20px 24px; margin: 20px 0; }
+.reco h3 { margin: 0 0 8px; font-family: Manrope, Inter, sans-serif; font-size: 1.3rem; }
+footer { color: var(--mut); font-size: .88rem; padding: 24px 0 60px; }
+h2.sec { font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 1.6rem; margin: 40px 0 12px; }
+@media (max-width: 1000px) { .defects { grid-template-columns: 1fr 1fr; } .row, .dir-head { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap top">
+  <h1>Gauge Cam — quatre directions de design</h1>
+  <p>Interface de l'appareil et page d'installation sur GitHub Pages. Données fictives : cylindre couché de
+    250 × 150 cm (4 418 L), dernière lecture 99,6 cm. Les directions se combinent : on peut garder l'accueil de
+    l'une et le réglage du cadran d'une autre. Tout est cliquable : onglets, outils, photo, formes de cuve,
+    « Enregistrer ». « Agrandir » montre un écran à sa taille réelle.</p>
+  <div class="defects">
+    <div class="defect"><b>Six onglets sur l'appareil</b><span>Il ne se règle qu'une fois. Sur téléphone, « Réseau » et « Système » sortent de l'écran et l'en-tête passe sur deux lignes.</span></div>
+    <div class="defect"><b>Un accueil sans hiérarchie</b><span>Trois chiffres de même poids, puis une photo encombrée des 13 repères de réglage. Rien ne dit d'un coup d'œil si tout va bien.</span></div>
+    <div class="defect"><b>Le réglage gaspille l'écran</b><span>Photo de 640 px, un grand vide au milieu, et une échelle en tableau de 13 lignes qu'il faut faire défiler loin de la photo.</span></div>
+    <div class="defect"><b>La page d'installation est un texte</b><span>Aucune image du montage ni de ce qu'on obtient. La version affiche « … » tant que le manifeste n'est pas chargé.</span></div>
+  </div>
+</div>
+<nav class="jump"><div class="wrap">
+  <a href="#A">A · Net</a><a href="#B">B · Instrument</a><a href="#C">C · Assistant</a><a href="#D">D · Atelier</a>
+  <a href="#cmp">Comparer</a><a href="#reco">Recommandation</a>
+</div></nav>
+
+<div class="wrap">
+{{DIR_A}}
+{{DIR_B}}
+{{DIR_C}}
+{{DIR_D}}
+
+<h2 class="sec" id="cmp">Comparer</h2>
+<table class="cmp">
+  <thead><tr><th></th><th>Idée</th><th>Ajouter un point à 120 cm</th><th>Passer en table de jaugeage</th><th>Onglets</th><th>Poids ajouté (gzip)</th><th>Firmware touché</th><th>Chantier</th><th>Risque principal</th></tr></thead>
+  <tbody>
+    <tr><th>A · Net</th><td>Même structure, mise au propre</td><td class="n" id="m-A-T1">5 gestes</td><td class="n" id="m-A-T2">3 gestes</td><td class="n">6</td><td class="n">≈ 3 Ko</td><td>Non</td><td>Petit</td><td>Reste banal ; le réglage garde son tableau</td></tr>
+    <tr><th>B · Instrument</th><td>Accueil en jauge, 3 onglets</td><td class="n" id="m-B-T1">5 gestes</td><td class="n" id="m-B-T2">3 gestes</td><td class="n">3</td><td class="n">≈ 35 Ko (2 polices)</td><td>Non</td><td>Moyen</td><td>Le thème sombre se lit mal en plein soleil, il faut un thème clair soigné</td></tr>
+    <tr><th>C · Assistant</th><td>Premier réglage guidé, puis accueil simple</td><td class="n" id="m-C-T1">5 gestes</td><td class="n" id="m-C-T2">3 gestes</td><td class="n">2</td><td class="n">≈ 45 Ko (police, dessins)</td><td>Un peu (état « réglage fini »)</td><td>Gros</td><td>Un assistant de plus à tenir à jour à chaque nouveau réglage</td></tr>
+    <tr><th>D · Atelier</th><td>La photo est l'écran, réglage sur place</td><td class="n" id="m-D-T1">4 gestes</td><td class="n" id="m-D-T2">3 gestes</td><td class="n">0 (tiroir)</td><td class="n">≈ 40 Ko + historique</td><td>Oui (historique 14 jours en PSRAM)</td><td>Gros</td><td>Perd l'historique au redémarrage ; doublonne Home Assistant</td></tr>
+  </tbody>
+</table>
+<p class="cap" style="display:block">Gestes comptés par un parcours automatique sur cette maquette, depuis l'accueil de l'appareil (un clic ou une saisie = un geste). Poids : estimation, à mesurer ; il reste environ 600 Ko libres dans la flash.</p>
+
+<div class="reco" id="reco">
+  <h3>Recommandation : B pour la base, avec le réglage sur place de D et la liste « ce qui manque » de C</h3>
+  <p>L'appareil se règle une fois, puis on le lit dans Home Assistant. Il doit donc surtout rendre le réglage
+    facile et dire d'un coup d'œil si tout va bien. B fait les deux avec trois onglets au lieu de six. Sa jauge
+    rappelle l'objet lu, et la page d'installation reprend la même identité.</p>
+  <ul>
+    <li><b>De D</b> : les points d'échelle se saisissent dans une bulle sur la photo, sans tableau à côté. La photo prend toute la place, et il y a un geste de moins par point.</li>
+    <li><b>De C</b> : tant qu'un réglage manque (cadran, cuve, MQTT), l'accueil affiche une liste des étapes restantes avec un lien vers chacune. C'est un assistant léger, sans écrans dédiés à maintenir.</li>
+    <li><b>Écarté</b> : l'historique de D (Home Assistant le garde déjà) et l'assistant complet de C (trop de code pour un réglage fait une seule fois).</li>
+    <li><b>À trancher</b> : B est sombre par défaut. Le thème clair suivrait le réglage du téléphone ; il reste à le dessiner.</li>
+  </ul>
+</div>
+
+<footer>
+  Fictif : les valeurs, le nom de l'appareil (<code>gauge-cam-3f2a1c</code>), le réseau Wi-Fi, l'adresse MQTT et
+  l'historique. La photo est le cadran dessiné par <code>tools/oil_dial.py</code>, pas une vraie photo. Les boîtes
+  de dialogue d'installation (choix du port série, Wi-Fi) sont celles d'esp-web-tools : elles ne changent pas selon la
+  direction choisie et ne sont pas dessinées ici. À vérifier : le poids réel une fois compressé, le contraste des
+  thèmes sombres, la lisibilité sur un vieux téléphone.
+</footer>
+</div>
+<div class="backdrop"></div>
+
+<script>
+// Fit each fixed-size viewport to its frame width.
+function fitAll() {
+  document.querySelectorAll(".fit").forEach((fit) => {
+    const vp = fit.querySelector(".vp");
+    const w = +vp.dataset.w, h = +vp.dataset.h;
+    const big = fit.closest(".big");
+    let s = fit.clientWidth / w;
+    if (big) s = Math.min(s, (window.innerHeight - 80) / h);
+    vp.style.width = w + "px"; vp.style.height = h + "px";
+    vp.style.transform = `scale(${s})`;
+    fit.style.height = h * s + "px";
+  });
+}
+window.addEventListener("resize", fitAll);
+new ResizeObserver(fitAll).observe(document.body);
+fitAll();
+
+const backdrop = document.querySelector(".backdrop");
+document.querySelectorAll("[data-big]").forEach((b) => b.addEventListener("click", () => {
+  const f = document.getElementById(b.dataset.big);
+  const on = !f.classList.contains("big");
+  document.querySelectorAll(".big").forEach((x) => x.classList.remove("big"));
+  f.classList.toggle("big", on);
+  backdrop.classList.toggle("on", on);
+  fitAll();
+}));
+backdrop.addEventListener("click", () => {
+  document.querySelectorAll(".big").forEach((x) => x.classList.remove("big"));
+  backdrop.classList.remove("on");
+  fitAll();
+});
+
+function toast(vp, text) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = text;
+  vp.appendChild(t);
+  setTimeout(() => t.remove(), 1400);
+}
+
+const CAP = { box: "3 750 L", hcyl: "4 418 L", vcyl: "2 651 L", table: "3 000 L" };
+
+document.addEventListener("click", (e) => {
+  const vp = e.target.closest(".vp");
+  if (!vp) return;
+  const go = e.target.closest("[data-go]");
+  if (go) {
+    const name = go.dataset.go;
+    const group = go.dataset.group || "main";
+    vp.querySelectorAll(`.screen[data-group="${group}"], .screen:not([data-group])`).forEach((s) => {
+      if ((s.dataset.group || "main") === group) s.classList.toggle("on", s.dataset.screen === name);
+    });
+    vp.querySelectorAll(`[data-go]`).forEach((b) => {
+      if ((b.dataset.group || "main") === group) b.classList.toggle("on", b.dataset.go === name);
+    });
+    vp.querySelectorAll(".scroll").forEach((s) => (s.scrollTop = 0));
+  }
+  const tool = e.target.closest("[data-tool]");
+  if (tool) {
+    vp.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("on", b === tool));
+    vp.dataset.tool = tool.dataset.tool;
+    const hint = vp.querySelector("[data-hint]");
+    if (hint && tool.dataset.hintText) hint.textContent = tool.dataset.hintText;
+  }
+  const open = e.target.closest("[data-open]");
+  if (open) vp.querySelectorAll(open.dataset.open).forEach((x) => x.classList.toggle("open"));
+  const shape = e.target.closest("[data-shape]");
+  if (shape) {
+    const form = shape.closest("form, .form");
+    form.querySelectorAll("[data-shape]").forEach((b) => b.classList.toggle("on", b === shape));
+    form.querySelectorAll("[data-shapes]").forEach((x) => (x.hidden = !x.dataset.shapes.split(" ").includes(shape.dataset.shape)));
+    form.querySelectorAll("[data-cap]").forEach((x) => (x.textContent = CAP[shape.dataset.shape]));
+    if (form.dataset.autosave) toast(vp, "Enregistré");
+  }
+  const save = e.target.closest("[data-save]");
+  if (save) { e.preventDefault(); toast(vp, save.dataset.save || "Enregistré"); }
+  const pick = e.target.closest("[data-pick]");
+  if (pick && (vp.dataset.tool === "point" || pick.dataset.pick === "always")) {
+    const r = pick.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+    const mk = document.createElement("i");
+    mk.className = "mk"; mk.style.left = x + "%"; mk.style.top = y + "%";
+    pick.querySelector(".marks").appendChild(mk);
+    const bubble = vp.querySelector("[data-bubble]");
+    if (bubble) {
+      bubble.hidden = false;
+      const par = bubble.offsetParent, br = par.getBoundingClientRect(), s = vp.getBoundingClientRect().width / vp.offsetWidth;
+      bubble.style.left = (e.clientX - br.left) / s + par.scrollLeft + 16 + "px";
+      bubble.style.top = (e.clientY - br.top) / s + par.scrollTop - 24 + "px";
+      const input = bubble.querySelector("input");
+      input.value = ""; input.focus();
+    } else {
+      const body = vp.querySelector(".pts tbody");
+      const tr = document.createElement("tr");
+      tr.className = "new";
+      tr.innerHTML = `<td><i class="dot"></i> Point ${body.children.length}</td><td><input class="pt-new" inputmode="decimal" placeholder="valeur"></td><td><button type="button">×</button></td>`;
+      body.insertBefore(tr, body.lastElementChild);
+      tr.querySelector("input").focus();
+    }
+  }
+  const ok = e.target.closest("[data-bubble-ok]");
+  if (ok) { ok.closest("[data-bubble]").hidden = true; toast(vp, "Point enregistré"); }
+});
+
+// Flasher C stepper.
+document.querySelectorAll("[data-fsteps]").forEach((root) => {
+  root.querySelectorAll("[data-fstep]").forEach((b) => b.addEventListener("click", () => {
+    const n = b.dataset.fstep;
+    root.querySelectorAll("[data-fpane]").forEach((p) => p.classList.toggle("on", p.dataset.fpane === n));
+    root.querySelectorAll(".fs-nav [data-fstep]").forEach((x) => x.classList.toggle("on", x.dataset.fstep === n));
+  }));
+});
+</script>
+</body>
+</html>

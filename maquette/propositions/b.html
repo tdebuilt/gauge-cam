@@ -1,0 +1,234 @@
+<section class="dir" id="B">
+<style>
+.dB { --bg:#0e1114; --panel:#161b20; --panel2:#1d232a; --ink:#e9edf1; --mut:#8b96a3; --line:#2a323b; --amb:#f5a524; --teal:#3cc6a5; --red:#e5484d;
+  font-family: Inter, system-ui, sans-serif; color: var(--ink); background: var(--bg); font-size: 15px; }
+.dB .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+.dB .hd { display:flex; align-items:center; gap: 14px; padding: 0 24px; height: 62px; border-bottom: 1px solid var(--line); }
+.dB .logo { width: 26px; height: 26px; color: var(--amb); }
+.dB .hd b { font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 17px; letter-spacing: .01em; }
+.dB .tabs { display:flex; gap: 4px; margin-left: 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 4px; }
+.dB .tabs button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--mut); padding: 7px 16px; border-radius: 8px; cursor: pointer; }
+.dB .tabs button.on { background: var(--panel2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.dB .leds { margin-left: auto; display:flex; gap: 16px; font-size: 13px; color: var(--mut); align-items: center; }
+.dB .leds span::before { content:""; display:inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); margin-right: 7px; box-shadow: 0 0 8px var(--teal); }
+.dB .leds em { font-style: normal; border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; }
+.dB .main { padding: 24px; }
+.dB .home { display:grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
+.dB .inst { background: radial-gradient(120% 90% at 50% 20%, #1b2229, #12161a); border: 1px solid var(--line); border-radius: 20px; padding: 20px; position: relative; text-align: center; }
+.dB .gauge { width: 330px; height: 330px; display:block; margin: 0 auto -40px; }
+.dB .g-track { stroke: #262e37; } .dB .g-red { stroke: var(--red); } .dB .g-val { stroke: var(--amb); filter: drop-shadow(0 0 6px #f5a52466); }
+.dB .g-ticks line { stroke: #56616d; stroke-width: 2; }
+.dB .g-needle { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; } .dB .g-hub { fill: var(--ink); }
+.dB .bigv { position: absolute; left: 0; right: 0; top: 140px; }
+.dB .bigv .v { font-family: "IBM Plex Mono", monospace; font-size: 54px; font-weight: 500; letter-spacing: -.03em; line-height: 1; }
+.dB .bigv .v small { font-size: 22px; color: var(--mut); }
+.dB .bigv .s { color: var(--mut); margin-top: 6px; font-size: 14px; }
+.dB .trio { display:grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); margin-top: 52px; }
+.dB .trio > div { padding: 14px 6px 4px; }
+.dB .trio > div + div { border-left: 1px solid var(--line); }
+.dB .trio .l { color: var(--mut); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.dB .trio .v { font-family: "IBM Plex Mono", monospace; font-size: 22px; }
+.dB .side { display:flex; flex-direction: column; gap: 16px; }
+.dB .pnl { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.dB .pnl h3 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--mut); font-weight: 600; display:flex; justify-content: space-between; }
+.dB .kv { display:grid; grid-template-columns: 1fr auto; gap: 9px 12px; font-size: 14px; }
+.dB .kv span:nth-child(odd) { color: var(--mut); }
+.dB .kv span:nth-child(even) { font-family: "IBM Plex Mono", monospace; }
+.dB .ph { border-radius: 12px; }
+.dB .btn { font: inherit; font-weight: 600; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer; }
+.dB .btn.pri { background: var(--amb); border-color: var(--amb); color: #1a1205; }
+.dB .row2 { display:flex; gap: 10px; align-items: center; }
+/* calibration */
+.dB .cal { display:grid; grid-template-columns: 64px minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.dB .rail { display:flex; flex-direction: column; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 6px; }
+.dB .rail button { font: inherit; font-size: 10.5px; border: 0; background: none; color: var(--mut); border-radius: 9px; padding: 8px 2px 6px; cursor: pointer; display:flex; flex-direction: column; align-items:center; gap: 4px; }
+.dB .rail button svg { width: 22px; height: 22px; }
+.dB .rail button.on { background: #f5a5241f; color: var(--amb); }
+.dB .hint { border-left: 3px solid var(--amb); padding: 6px 0 6px 12px; color: #c9d1d9; font-size: 14px; margin: 0 0 14px; }
+.dB table.pts { width: 100%; border-collapse: collapse; font-size: 14px; }
+.dB .pts td { padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.dB .pts input { width: 84px; font: inherit; font-family: "IBM Plex Mono", monospace; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink); }
+.dB .pts .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amb); display:inline-block; margin-right: 6px; }
+.dB .pts button { border: 0; background: none; color: var(--mut); cursor: pointer; font-size: 16px; }
+.dB .pts tr.new td { background: #f5a52412; }
+/* settings */
+.dB .set { display:grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; }
+.dB .snav { display:flex; flex-direction: column; gap: 2px; }
+.dB .snav button { font: inherit; text-align: left; border: 0; background: none; color: var(--mut); padding: 9px 12px; border-radius: 9px; cursor: pointer; display:flex; justify-content: space-between; }
+.dB .snav button.on { background: var(--panel); color: var(--ink); box-shadow: inset 2px 0 0 var(--amb); }
+.dB .snav small { color: #5f6a76; font-size: 12px; }
+.dB .shapes { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+.dB .shapes button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--panel2); border-radius: 12px; padding: 12px 6px 10px; cursor: pointer; color: var(--mut); display:flex; flex-direction: column; align-items:center; gap: 6px; }
+.dB .shapes svg { width: 44px; height: 32px; }
+.dB .shapes button.on { border-color: var(--amb); color: var(--amb); background: #f5a52412; }
+.dB .fld { display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.dB label.f { display:flex; flex-direction: column; gap: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); }
+.dB label.f input { min-width: 0; width: 100%; font: inherit; font-size: 15px; text-transform: none; letter-spacing: 0; font-family: "IBM Plex Mono", monospace; color: var(--ink); padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); }
+.dB .capline { display:flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.dB .capline .v { font-family: "IBM Plex Mono", monospace; font-size: 26px; color: var(--amb); }
+/* mobile */
+.dB.m .hd { padding: 0 18px; height: 56px; }
+.dB.m .main { padding: 14px 16px 96px; }
+.dB.m .gauge { width: 300px; height: 300px; }
+.dB.m .bigv { top: 126px; }
+.dB.m .bigv .v { font-size: 46px; }
+.dB .bnav { position: absolute; left: 12px; right: 12px; bottom: 14px; height: 62px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; display:grid; grid-template-columns: repeat(3, 1fr); }
+.dB .bnav button { font: inherit; font-size: 12px; border: 0; background: none; color: var(--mut); display:flex; flex-direction: column; align-items:center; justify-content: center; gap: 3px; cursor: pointer; }
+.dB .bnav button.on { color: var(--amb); font-weight: 600; }
+.dB .bnav svg { width: 22px; height: 22px; }
+/* flasher */
+.fB { font-family: Inter, system-ui, sans-serif; color: #e9edf1; background: #0e1114; font-size: 16px; }
+.fB .fhd { display:flex; align-items:center; gap: 10px; padding: 20px 64px; }
+.fB .fhd .logo { width: 28px; height: 28px; color: #f5a524; }
+.fB .fhd b { font-family: Manrope, sans-serif; font-weight: 800; font-size: 18px; }
+.fB .fhd .gh { margin-left: auto; color: #8b96a3; font-size: 14px; display:flex; gap: 18px; }
+.fB .hero { display:grid; grid-template-columns: 1.1fr 1fr; gap: 30px; align-items: center; padding: 30px 64px 40px; }
+.fB .kick { color: #f5a524; font-family: "IBM Plex Mono", monospace; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+.fB h1 { font-family: Manrope, sans-serif; font-weight: 800; font-size: 46px; line-height: 1.08; letter-spacing: -.02em; margin: 12px 0 16px; }
+.fB .hero p { color: #a3adb8; font-size: 18px; margin: 0 0 26px; }
+.fB .inst { font: inherit; font-weight: 700; padding: 15px 28px; border-radius: 12px; border: 0; background: #f5a524; color: #1a1205; font-size: 17px; box-shadow: 0 0 30px #f5a52444; }
+.fB .ver { margin-left: 14px; color: #8b96a3; font-family: "IBM Plex Mono", monospace; font-size: 14px; }
+.fB .hero-gauge { width: 360px; height: 360px; display:block; margin: 0 auto; }
+.fB .g-track { stroke: #262e37; } .fB .g-red { stroke: #e5484d; } .fB .g-val { stroke: #f5a524; filter: drop-shadow(0 0 10px #f5a52488); }
+.fB .g-ticks line { stroke: #56616d; stroke-width: 2; } .fB .g-needle { stroke: #e9edf1; stroke-width: 5; stroke-linecap: round; } .fB .g-hub { fill: #e9edf1; }
+.fB .g-needle { transform-origin: 170px 170px; animation: sweep 2.4s ease-out both; }
+@keyframes sweep { from { transform: rotate(-169deg); } to { transform: rotate(0); } }
+.fB .strip { display:flex; gap: 0; margin: 0 64px; border: 1px solid #2a323b; border-radius: 14px; overflow: hidden; }
+.fB .strip div { flex: 1; padding: 16px 18px; font-size: 15px; color: #c9d1d9; }
+.fB .strip div + div { border-left: 1px solid #2a323b; }
+.fB .strip b { display:block; color: #3cc6a5; font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 4px; }
+.fB .steps { display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin: 34px 64px 40px; counter-reset: s; }
+.fB .steps div { border-top: 2px solid #2a323b; padding-top: 14px; }
+.fB .steps div:first-child { border-color: #f5a524; }
+.fB .steps em { font-style: normal; font-family: "IBM Plex Mono", monospace; color: #f5a524; font-size: 13px; }
+.fB .steps b { display:block; font-size: 17px; margin: 4px 0; }
+.fB .steps span { color: #8b96a3; font-size: 15px; }
+</style>
+<div class="dir-head">
+  <div><h2>B · Instrument<small>Une jauge à l'accueil, trois onglets</small></h2>
+    <p>L'accueil est un instrument : une jauge qui reprend l'objet lu, avec les litres en grand. Les réglages sont
+      regroupés dans un seul onglet, avec un menu à gauche. Thème sombre, chiffres en police à chasse fixe, ambre pour le mazout.</p></div>
+  <div class="pc"><h4>Pour</h4><ul><li>Identité forte, la même sur l'appareil et sur la page d'installation</li><li>Trois onglets : Niveau, Cadran, Réglages</li><li>État lisible d'un coup d'œil (voyants)</li></ul></div>
+  <div class="pc"><h4>Contre</h4><ul><li>Il faut aussi soigner un thème clair</li><li>Deux polices à embarquer (≈ 35 Ko)</li><li>L'échelle reste un tableau à côté de la photo</li></ul></div>
+</div>
+<div class="row">
+<div>
+<div class="frame" id="B-dev"><div class="bar"><i></i><i></i><i></i><span>gauge-cam-3f2a1c.local</span></div>
+<div class="fit"><div class="vp dB" data-w="1200" data-h="760"><div class="scroll">
+  <div class="hd">{{LOGO}}<b>GAUGE CAM</b>
+    <nav class="tabs"><button data-go="read" class="on">Niveau</button><button data-go="dial" id="B-t-dial">Cadran</button><button data-go="set" id="B-t-set">Réglages</button></nav>
+    <div class="leds"><span>Wi-Fi</span><span>MQTT</span><span>Caméra</span><em>FR</em></div></div>
+  <div class="main">
+    <div class="screen on" data-screen="read">
+      <div class="home">
+        <div class="inst">{{GAUGE_B}}
+          <div class="bigv"><div class="v">3 116<small> L</small></div><div class="s">sur 4 418 L</div></div>
+          <div class="trio"><div><div class="l">Remplissage</div><div class="v">70,5 %</div></div><div><div class="l">Niveau</div><div class="v">99,6 cm</div></div><div><div class="l">Contraste</div><div class="v">103</div></div></div>
+          <div class="row2" style="justify-content:center;margin-top:22px"><button class="btn pri">Lire maintenant</button><span style="color:var(--mut);font-size:13px">≈ 4 s, flash compris</span></div>
+        </div>
+        <div class="side">
+          <div class="pnl"><h3>Lecture <span style="color:var(--teal)">réussie</span></h3><div class="kv">
+            <span>Dernière</span><span>10:15:02</span><span>Prochaine</span><span>10:45</span><span>Lectures refusées</span><span>0</span><span>Firmware</span><span>v0.1.0 ✓</span></div></div>
+          <div class="pnl"><h3>Dernière photo <span>repères ▸</span></h3>{{PHOTO:live:#f5a524}}</div>
+        </div>
+      </div>
+    </div>
+    <div class="screen" data-screen="dial">
+      <div class="cal">
+        <div class="rail">
+          <button data-tool="roi"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/></svg>Contour</button>
+          <button data-tool="pivot"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2"/></svg>Centre</button>
+          <button data-tool="start"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="#2ecc71"/></svg>Début</button>
+          <button data-tool="end"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="#d65cff"/></svg>Fin</button>
+          <button data-tool="point" id="B-tool-point" data-hint-text="Clique sur la graduation, puis saisis sa valeur dans la nouvelle ligne."><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="#f5a524"/><path d="M19 3v6M16 6h6" stroke="currentColor" stroke-width="2"/></svg>Point</button>
+          <button><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Photo</button>
+        </div>
+        {{PHOTO:calib:#f5a524::pick}}
+        <div class="pnl">
+          <p class="hint" data-hint>Choisis un outil à gauche, puis clique sur la photo.</p>
+          <h3>Échelle <span>13 points</span></h3>
+          <table class="pts"><tbody>
+            <tr><td><i class="dot" style="background:#2ecc71"></i>Début</td><td><input value="0"></td><td></td></tr>
+            <tr><td><i class="dot"></i>Point 1</td><td><input value="40"></td><td><button>×</button></td></tr>
+            <tr><td><i class="dot"></i>Point 2</td><td><input value="50"></td><td><button>×</button></td></tr>
+            <tr><td><i class="dot"></i>…</td><td style="color:var(--mut)">9 autres</td><td></td></tr>
+            <tr><td><i class="dot" style="background:#d65cff"></i>Fin</td><td><input value="150"></td><td></td></tr>
+          </tbody></table>
+          <div class="row2" style="margin-top:14px"><button class="btn">Tester</button><button class="btn pri" data-save id="B-save-dial">Enregistrer</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="screen" data-screen="set">
+      <div class="set">
+        <div class="snav">
+          <button data-go="tank" data-group="set" class="on">Cuve <small>cyl. couché</small></button>
+          <button data-go="meas" data-group="set">Mesure <small>30 min</small></button>
+          <button data-go="net" data-group="set">Réseau et MQTT <small>connecté</small></button>
+          <button data-go="net" data-group="set">Heure et mises à jour</button>
+          <button data-go="net" data-group="set">Système et journal</button>
+        </div>
+        <div>
+          <form class="pnl form screen on" data-screen="tank" data-group="set">
+            <h3>Forme de la cuve</h3>
+            <div class="shapes">
+              <button type="button" data-shape="box">{{ICON_BOX}}Parallélépipède</button>
+              <button type="button" data-shape="hcyl" class="on">{{ICON_HCYL}}Cylindre couché</button>
+              <button type="button" data-shape="vcyl">{{ICON_VCYL}}Cylindre debout</button>
+              <button type="button" data-shape="table" id="B-shape-table">{{ICON_TABLE}}Table</button></div>
+            <div class="fld">
+              <label class="f" data-shapes="box hcyl">Longueur cm<input value="250"></label>
+              <label class="f" data-shapes="box" hidden>Largeur cm<input value="100"></label>
+              <label class="f" data-shapes="hcyl vcyl">Diamètre cm<input value="150"></label>
+              <label class="f" data-shapes="box vcyl" hidden>Hauteur cm<input value="150"></label>
+              <label class="f" data-shapes="table" hidden>Table<input value="0 0 · 40 520 · 150 3000"></label>
+              <label class="f">Décalage cm<input value="0"></label></div>
+            <div class="capline"><div><div style="color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.08em">Capacité</div><div class="v" data-cap>4 418 L</div></div>
+              <button class="btn pri" data-save id="B-save-tank">Enregistrer</button></div>
+          </form>
+          <div class="pnl screen" data-screen="meas" data-group="set"><h3>Mesure</h3><div class="kv"><span>Intervalle</span><span>30 min</span><span>Échantillons</span><span>3</span><span>Saut maximal</span><span>5 cm</span></div></div>
+          <div class="pnl screen" data-screen="net" data-group="set"><h3>Réseau et MQTT</h3><div class="kv"><span>Wi-Fi</span><span>maison · −61 dBm</span><span>Serveur MQTT</span><span>172.30.50.110:1883</span><span>Découverte HA</span><span>activée</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div></div>
+<p class="cap"><span>Niveau, Cadran (outil Point puis photo) et Réglages (menu de gauche) sont cliquables.</span><button data-big="B-dev">Agrandir</button></p>
+</div>
+<div>
+<div class="phone" id="B-mob"><div class="fit"><div class="vp dB m" data-w="390" data-h="800"><div class="scroll">
+  <div class="hd">{{LOGO}}<b>CUVE MAZOUT</b><div class="leds"><span>OK</span></div></div>
+  <div class="main">
+    <div class="inst">{{GAUGE_B}}
+      <div class="bigv"><div class="v">3 116<small> L</small></div><div class="s">sur 4 418 L</div></div>
+      <div class="trio"><div><div class="l">Rempli</div><div class="v">70,5 %</div></div><div><div class="l">Niveau</div><div class="v">99,6</div></div><div><div class="l">Il y a</div><div class="v">3 s</div></div></div>
+    </div>
+    <button class="btn pri" style="width:100%;margin-top:14px">Lire maintenant</button>
+    <div class="pnl" style="margin-top:14px"><h3>Dernière photo</h3>{{PHOTO:live:#f5a524}}</div>
+  </div>
+</div>
+<nav class="bnav">
+  <button class="on"><svg viewBox="0 0 24 24"><path d="M4 16a8 8 0 1 1 16 0" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 16l4-5" stroke="currentColor" stroke-width="2"/></svg>Niveau</button>
+  <button><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Cadran</button>
+  <button><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>Réglages</button>
+</nav>
+</div></div></div>
+<p class="cap"><span>Téléphone : la jauge occupe l'écran, trois onglets.</span><button data-big="B-mob">Agrandir</button></p>
+</div>
+</div>
+<div class="frame" id="B-fl"><div class="bar"><i></i><i></i><i></i><span>tdebuilt.github.io/gauge-cam/</span></div>
+<div class="fit"><div class="vp fB" data-w="1200" data-h="820"><div class="scroll">
+  <div class="fhd">{{LOGO}}<b>GAUGE CAM</b><div class="gh"><span>Documentation</span><span>GitHub</span><span>FR · EN</span></div></div>
+  <div class="hero">
+    <div><div class="kick">ESP32-CAM · MQTT · Home Assistant</div>
+      <h1>Votre jauge de mazout, lue toute seule.</h1>
+      <p>Un ESP32-CAM d'une dizaine d'euros photographie la jauge de la cuve, lit l'aiguille et envoie les litres restants à Home Assistant.</p>
+      <button class="inst">Installer sur l'ESP32-CAM</button><span class="ver">v0.1.0</span></div>
+    <div>{{GAUGE_B_HERO}}</div>
+  </div>
+  <div class="strip"><div><b>Sans carte SD</b>Tout tient dans la mémoire de l'ESP32</div><div><b>Mises à jour</b>Depuis Home Assistant, avec retour arrière</div><div><b>Local</b>Les mesures restent chez vous, par MQTT</div></div>
+  <div class="steps"><div><em>01</em><b>Brancher</b><span>ESP32-CAM sur sa carte ESP32-CAM-MB, câble USB vers l'ordinateur.</span></div>
+    <div><em>02</em><b>Installer</b><span>Bouton ci-dessus, port série, Installer. Bloqué : IO0 enfoncé pendant RST.</span></div>
+    <div><em>03</em><b>Wi-Fi et réglage</b><span>Choisis le réseau, puis règle le cadran et la cuve sur l'appareil.</span></div></div>
+</div></div></div></div>
+<p class="cap"><span>Page d'installation : l'aiguille balaie la jauge au chargement.</span><button data-big="B-fl">Agrandir</button></p>
+</section>

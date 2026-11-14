@@ -1,0 +1,152 @@
+<!--step:welcome-->
+<div class="screen" data-screen="welcome">
+  <div class="wz-hd">{{LOGO}}<b>GAUGE CAM</b><span class="wz-t">Mise en service</span></div>
+  <div class="wz-welcome">
+    <div class="ok-wifi"><span></span>Wi-Fi connecté : « maison », signal bon</div>
+    <h1>Encore six étapes, environ cinq minutes.</h1>
+    <ol class="wz-list">
+      <li><em>1</em><b>Photo</b><span>la jauge est-elle nette ?</span></li>
+      <li><em>2</em><b>Cadrage</b><span>un cadre autour du cadran</span></li>
+      <li><em>3</em><b>Graduations</b><span>cliquer les chiffres dans l'ordre</span></li>
+      <li><em>4</em><b>Vérification</b><span>la valeur lue est-elle juste ?</span></li>
+      <li><em>5</em><b>Cuve</b><span>sa forme et sa capacité</span></li>
+      <li><em>6</em><b>Home Assistant</b><span>l'adresse du serveur MQTT</span></li>
+    </ol>
+    <div class="wz-foot"><button class="btn pri" data-go="photo" data-t="start">Commencer</button><button class="lnk" data-go="home-todo">Plus tard</button></div>
+  </div>
+</div>
+<!--step:photo-->
+<div class="screen" data-screen="photo">
+  <div class="wz-hd">{{LOGO}}<b>GAUGE CAM</b><span class="wz-t">Mise en service</span>{{PROG:1}}<button class="lnk" data-go="home-todo">Plus tard</button></div>
+  <div class="wz-two">
+    {{PHOTO:none:#f5a524}}
+    <div class="wz-side">
+      <div class="wz-n">Étape 1 sur 6</div>
+      <h2>Vois-tu les chiffres de la jauge nettement ?</h2>
+      <p class="mut">L'appareil vient de prendre cette photo avec le flash.</p>
+      <label class="rg">Flash <span><input type="range" value="50"><output>50 %</output></span></label>
+      <div class="rot"><span>Rotation</span><button class="btn sm">⟲ 90°</button><button class="btn sm">⟳ 90°</button><button class="btn sm">Miroir</button></div>
+      <p class="hint2">Trop sombre : monte le flash. Un reflet sur la vitre : baisse-le ou incline un peu la caméra.</p>
+      <details class="more"><summary>Plus de réglages</summary><p class="mut">Résolution, exposition, contraste.</p></details>
+      <div class="wz-foot"><button class="btn">Reprendre une photo</button><button class="btn pri" data-go="frame" data-t="photo-ok">Oui, continuer</button></div>
+    </div>
+  </div>
+</div>
+<!--step:frame-->
+<div class="screen" data-screen="frame">
+  <div class="wz-hd">{{LOGO}}<b>GAUGE CAM</b><span class="wz-t">Mise en service</span>{{PROG:2}}<button class="lnk" data-go="home-todo">Plus tard</button></div>
+  <div class="wz-two">
+    <div class="framewrap">{{PHOTO:none:#f5a524}}<div class="cropbox"><i></i><i></i><i></i><i></i></div><div class="hubmark"></div></div>
+    <div class="wz-side">
+      <div class="wz-n">Étape 2 sur 6</div>
+      <h2>Ajuste le cadre autour du cadran</h2>
+      <p class="mut">Tire les coins jaunes. La lecture ne regarde que l'intérieur du cadre.</p>
+      <p class="okline"><span></span>Centre de l'aiguille trouvé : le moyeu noir.</p>
+      <p class="hint2">Si le centre est mal placé, clique sur le vrai centre de l'aiguille.</p>
+      <div class="wz-foot"><button class="btn" data-go="photo">Retour</button><button class="btn pri" data-go="grad" data-t="frame-ok">C'est bon</button></div>
+    </div>
+  </div>
+</div>
+<!--step:grad-->
+<div class="screen" data-screen="grad">
+  <div class="wz-hd">{{LOGO}}<b>GAUGE CAM</b><span class="wz-t">Mise en service</span>{{PROG:3}}<button class="lnk" data-go="home-todo">Plus tard</button></div>
+  <div class="wz-two">
+    <div class="ph-fixed">{{PHOTO:none:#f5a524::seq}}</div>
+    <div class="wz-side">
+      <div class="wz-n">Étape 3 sur 6</div>
+      <label class="model">Modèle de jauge
+        <select><option>Jauge à mazout 0–150 cm (0, 40, 50 … 150)</option><option>Jauge 0–100 %</option><option>Autre : je saisis les chiffres imprimés</option></select></label>
+      <div class="seq-todo"><h2>Clique sur la graduation <span class="big-n" data-seq-next>0</span></h2>
+        <p class="mut">Dans l'ordre. La valeur suivante est proposée toute seule : rien à taper.</p></div>
+      <div class="seq-done" hidden><h2>Les 13 graduations sont placées</h2>
+        <p class="mut">Pour plus de précision dans la zone rouge, clique entre deux graduations : une bulle demande la valeur.</p></div>
+      <div class="chips-seq" data-seq-chips></div>
+      <div class="wz-foot"><button class="lnk" data-seq-undo>Annuler le dernier</button><button class="lnk" data-seq-auto>Placer les autres (démo)</button>
+        <button class="btn pri" data-go="check" data-seq-continue disabled data-t="grad-ok">Continuer</button></div>
+    </div>
+  </div>
+</div>
+<!--step:check-->
+<div class="screen" data-screen="check">
+  <div class="wz-hd">{{LOGO}}<b>GAUGE CAM</b><span class="wz-t">Mise en service</span>{{PROG:4}}<button class="lnk" data-go="home-todo">Plus tard</button></div>
+  <div class="wz-two">
+    {{PHOTO:live:#f5a524:99,6 cm}}
+    <div class="wz-side">
+      <div class="wz-n">Étape 4 sur 6</div>
+      <h2>L'appareil lit <span class="amb">99,6 cm</span>. Est-ce ce que montre la jauge ?</h2>
+      <p class="mut">Regarde l'aiguille sur la photo, ou directement la jauge.</p>
+      <div class="kv2"><span>Contraste de l'aiguille</span><b>103, bon</b><span>Écart avec la jauge accepté</span><b>± 1 cm</b></div>
+      <div class="wz-foot"><button class="btn" data-go="grad">Non, corriger les graduations</button><button class="btn pri" data-go="tank" data-t="check-ok">Oui, c'est juste</button></div>
+    </div>
+  </div>
+</div>
+<!--step:tank-->
+<div class="screen" data-screen="tank">
+  <div class="wz-hd">{{LOGO}}<b>GAUGE CAM</b><span class="wz-t">Mise en service</span>{{PROG:5}}<button class="lnk" data-go="home-todo">Plus tard</button></div>
+  <div class="wz-one form" data-calc-form>
+    <div class="wz-n">Étape 5 sur 6</div>
+    <h2>Quelle est la forme de la cuve ?</h2>
+    <div class="shapes">
+      <button type="button" data-shape="box">{{ICON_BOX}}Parallélépipède</button>
+      <button type="button" data-shape="hcyl" data-t="shape">{{ICON_HCYL}}Cylindre couché</button>
+      <button type="button" data-shape="vcyl">{{ICON_VCYL}}Cylindre debout</button>
+      <button type="button" data-shape="table">{{ICON_TABLE}}Table de jaugeage</button></div>
+    <div class="mode"><span>Je connais</span><button class="on" type="button">sa capacité</button><button type="button">ses dimensions</button></div>
+    <div class="fld2">
+      <label class="f">Capacité (plaque de la cuve), litres<input inputmode="numeric" placeholder="ex. 3000" data-calc="cap" data-t="cap"></label>
+      <label class="f">Hauteur intérieure, cm<input value="150" data-calc="h"><small>proposée : la fin de l'échelle</small></label>
+    </div>
+    <p class="calc" data-calc-out>Choisis une forme.</p>
+    <div class="wz-foot"><button class="btn" data-go="check">Retour</button><button class="btn pri" data-go="ha" data-t="tank-ok">Continuer</button></div>
+  </div>
+</div>
+<!--step:ha-->
+<div class="screen" data-screen="ha">
+  <div class="wz-hd">{{LOGO}}<b>GAUGE CAM</b><span class="wz-t">Mise en service</span>{{PROG:6}}<button class="lnk" data-go="home-todo">Plus tard</button></div>
+  <div class="wz-one">
+    <div class="wz-n">Étape 6 sur 6</div>
+    <h2>Relier à Home Assistant</h2>
+    <p class="mut">Par le serveur MQTT (l'add-on Mosquitto de Home Assistant, par exemple). L'appareil y apparaît tout seul.</p>
+    <div class="fld3">
+      <label class="f">Serveur MQTT<input placeholder="homeassistant.local ou adresse IP" data-t="host"></label>
+      <label class="f">Utilisateur<input data-t="user"></label>
+      <label class="f">Mot de passe<input type="password" data-t="pass"></label></div>
+    <p class="calc" data-test-status></p>
+    <div class="wz-foot"><a class="lnk" href="#" onclick="return false">Pas de serveur MQTT ? Installer Mosquitto</a><button class="btn pri" data-test-go="done" data-t="ha-ok">Tester et terminer</button></div>
+  </div>
+</div>
+<!--step:done-->
+<div class="screen" data-screen="done">
+  <div class="hd">{{LOGO}}<b>GAUGE CAM</b>
+    <nav class="tabs"><button class="on">Niveau</button><button>Cadran</button><button>Réglages</button></nav>
+    <div class="leds"><span>Wi-Fi</span><span>MQTT</span><span>Caméra</span><em>FR</em></div></div>
+  <div class="main"><div class="home">
+    <div class="inst">{{GAUGE_B}}
+      <div class="bigv"><div class="v">3 116<small> L</small></div><div class="s">sur 4 418 L</div></div>
+      <div class="trio"><div><div class="l">Remplissage</div><div class="v">70,5 %</div></div><div><div class="l">Niveau</div><div class="v">99,6 cm</div></div><div><div class="l">Prochaine</div><div class="v">10:45</div></div></div>
+    </div>
+    <div class="side">
+      <div class="pnl ready"><h3>Mise en service terminée</h3><p>Dans Home Assistant : <b>Paramètres → Appareils et services → MQTT</b>, appareil « Cuve mazout ». Les valeurs arrivent toutes les 30 minutes.</p></div>
+      <div class="pnl"><h3>Dernière photo <span>repères ▸</span></h3>{{PHOTO:live:#f5a524}}</div>
+    </div>
+  </div></div>
+</div>
+<!--step:home-todo-->
+<div class="screen" data-screen="home-todo">
+  <div class="hd">{{LOGO}}<b>GAUGE CAM</b>
+    <nav class="tabs"><button class="on">Niveau</button><button>Cadran</button><button>Réglages</button></nav>
+    <div class="leds"><span>Wi-Fi</span><span class="off">MQTT</span><span>Caméra</span><em>FR</em></div></div>
+  <div class="main"><div class="home">
+    <div class="inst">{{GAUGE_B}}
+      <div class="bigv"><div class="v">99,6<small> cm</small></div><div class="s">les litres viendront avec la cuve</div></div>
+      <div class="trio"><div><div class="l">Remplissage</div><div class="v">66 %</div></div><div><div class="l">Volume</div><div class="v">—</div></div><div><div class="l">Prochaine</div><div class="v">10:45</div></div></div>
+    </div>
+    <div class="side">
+      <div class="pnl todo"><h3>Encore 2 étapes <span>4 sur 6</span></h3>
+        <div class="tbar"><i></i></div>
+        <ul><li class="ok">Photo, cadrage, graduations, vérification</li><li><b>Cuve</b><span>pour avoir les litres</span><button class="btn sm" data-go="tank">Faire</button></li>
+          <li><b>Home Assistant</b><span>rien n'est encore envoyé</span><button class="btn sm" data-go="ha">Faire</button></li></ul></div>
+      <div class="pnl"><h3>Dernière photo</h3>{{PHOTO:live:#f5a524}}</div>
+    </div>
+  </div></div>
+</div>

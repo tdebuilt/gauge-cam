@@ -1,0 +1,174 @@
+<section class="dir" id="D">
+<style>
+.dD { --ink:#f2f5f8; --mut:#a9b3bf; --glass:rgba(14,18,24,.62); --gl2:rgba(255,255,255,.08); --edge:rgba(255,255,255,.14); --acc:#4cc3ff;
+  font-family: Inter, system-ui, sans-serif; color: var(--ink); background: #0b0e12; font-size: 15px; }
+.dD .stage { position: absolute; inset: 0; }
+.dD .stage .ph { position: absolute; inset: 0; aspect-ratio: auto; filter: saturate(.9); }
+.dD .gl { background: var(--glass); backdrop-filter: blur(16px) saturate(1.3); border: 1px solid var(--edge); border-radius: 18px; }
+.dD .topbar { position: absolute; left: 18px; right: 18px; top: 16px; display:flex; align-items:center; gap: 12px; padding: 8px 10px 8px 16px; }
+.dD .logo { width: 24px; height: 24px; color: #fff; }
+.dD .topbar b { font-weight: 600; }
+.dD .topbar .st { color: var(--mut); font-size: 13px; display:flex; gap: 12px; margin-left: 10px; }
+.dD .topbar .st span::before { content:""; display:inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3ddc97; margin-right: 6px; }
+.dD .gbtn { font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--gl2); border: 1px solid var(--edge); border-radius: 12px; padding: 8px 14px; cursor: pointer; }
+.dD .gbtn.on, .dD .gbtn.pri { background: var(--acc); border-color: var(--acc); color: #04131d; }
+.dD .ml { margin-left: auto; }
+.dD .readout { position: absolute; left: 18px; bottom: 18px; width: 470px; padding: 18px 20px; }
+.dD .readout .v { font-size: 52px; font-weight: 600; letter-spacing: -.03em; line-height: 1; }
+.dD .readout .v small { font-size: 22px; color: var(--mut); font-weight: 500; }
+.dD .readout .r { display:flex; gap: 18px; color: var(--mut); margin: 8px 0 14px; font-size: 14px; }
+.dD .readout .r b { color: var(--ink); font-weight: 600; }
+.dD .hist { width: 100%; height: 90px; display:block; }
+.dD .h-line { stroke: var(--acc); stroke-width: 2; vector-effect: non-scaling-stroke; } .dD .h-area { fill: rgba(76,195,255,.16); }
+.dD .hlab { display:flex; justify-content: space-between; color: var(--mut); font-size: 12px; margin-top: 4px; }
+.dD .side { position: absolute; right: 18px; bottom: 18px; width: 260px; padding: 14px 16px; font-size: 14px; }
+.dD .side div { display:flex; justify-content: space-between; padding: 5px 0; }
+.dD .side span { color: var(--mut); }
+/* calibration */
+.dD .tools { position: absolute; left: 50%; transform: translateX(-50%); top: 78px; display:flex; gap: 4px; padding: 5px; }
+.dD .tools button { font: inherit; font-size: 14px; color: var(--ink); background: none; border: 0; border-radius: 12px; padding: 8px 13px; cursor: pointer; }
+.dD .tools button.on { background: var(--acc); color: #04131d; font-weight: 600; }
+.dD .tip { position: absolute; left: 50%; transform: translateX(-50%); top: 132px; padding: 7px 14px; font-size: 14px; color: var(--mut); border-radius: 999px; }
+.dD .bubble { position: absolute; z-index: 30; padding: 10px; display:flex; gap: 8px; align-items:center; }
+.dD .bubble input { width: 86px; font: inherit; color: var(--ink); background: rgba(0,0,0,.35); border: 1px solid var(--edge); border-radius: 10px; padding: 7px 10px; }
+.dD .bubble small { color: var(--mut); }
+/* drawer */
+.dD .drawer { position: absolute; top: 16px; right: 18px; bottom: 16px; width: 400px; padding: 18px; overflow: auto; transform: translateX(440px); transition: transform .25s; }
+.dD .drawer.open { transform: none; }
+.dD .drawer h3 { margin: 0 0 12px; font-size: 17px; display:flex; justify-content: space-between; align-items: center; }
+.dD .sec { border-top: 1px solid var(--edge); }
+.dD .sec > button { font: inherit; width: 100%; display:flex; justify-content: space-between; background: none; border: 0; color: var(--ink); padding: 13px 2px; cursor: pointer; font-weight: 600; }
+.dD .sec > button small { color: var(--mut); font-weight: 400; }
+.dD .sec .body { display: none; padding: 0 0 14px; }
+.dD .sec.open .body { display: block; }
+.dD .shapes { display:grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+.dD .shapes button { font: inherit; font-size: 11px; color: var(--mut); background: var(--gl2); border: 1px solid var(--edge); border-radius: 12px; padding: 9px 2px 7px; cursor: pointer; display:flex; flex-direction: column; align-items:center; gap: 4px; }
+.dD .shapes svg { width: 34px; height: 26px; }
+.dD .shapes button.on { border-color: var(--acc); color: var(--acc); background: rgba(76,195,255,.12); }
+.dD .fld { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dD label.f { display:flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--mut); }
+.dD label.f input { min-width: 0; width: 100%; font: inherit; color: var(--ink); background: rgba(0,0,0,.3); border: 1px solid var(--edge); border-radius: 10px; padding: 8px 10px; }
+.dD .saved { color: #3ddc97; font-size: 13px; margin: 10px 0 0; }
+/* mobile */
+.dD.m .stage .ph { bottom: 300px; }
+.dD.m .topbar { left: 12px; right: 12px; top: 12px; }
+.dD .sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 330px; border-radius: 26px 26px 0 0; padding: 10px 20px 20px; background: rgba(14,18,24,.92); border-top: 1px solid var(--edge); }
+.dD .sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.25); margin: 0 auto 14px; }
+.dD .sheet .v { font-size: 46px; font-weight: 600; letter-spacing: -.03em; }
+.dD .sheet .v small { font-size: 20px; color: var(--mut); }
+/* flasher */
+.fD { font-family: Inter, system-ui, sans-serif; color: #10151b; background: #fff; font-size: 16px; }
+.fD .fhd { display:flex; align-items:center; gap: 10px; padding: 20px 64px; }
+.fD .fhd .logo { width: 28px; height: 28px; }
+.fD .fhd b { font-size: 18px; }
+.fD .fhd .gh { margin-left: auto; color: #5b6573; font-size: 14px; display:flex; gap: 18px; align-items: center; }
+.fD .fhd .mini { font: inherit; font-weight: 600; font-size: 14px; background: #10151b; color: #fff; border: 0; border-radius: 10px; padding: 8px 14px; }
+.fD .hero { display:grid; grid-template-columns: 1fr 1.15fr; gap: 30px; align-items: center; padding: 30px 64px 30px; }
+.fD h1 { font-size: 50px; line-height: 1.05; letter-spacing: -.035em; margin: 0 0 16px; font-weight: 600; }
+.fD h1 span { background: linear-gradient(90deg, #0a84c6, #4cc3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fD .hero p { color: #5b6573; font-size: 18px; margin: 0 0 24px; }
+.fD .inst { font: inherit; font-weight: 600; padding: 14px 26px; border-radius: 12px; border: 0; background: #10151b; color: #fff; font-size: 17px; }
+.fD .ver { margin-left: 12px; color: #5b6573; font-size: 14px; }
+.fD .combo { position: relative; height: 380px; }
+.fD .combo .ph { position: absolute; left: 0; top: 10px; width: 330px; border-radius: 20px; box-shadow: 0 20px 50px rgba(10,20,40,.25); }
+.fD .ha { position: absolute; right: 0; bottom: 10px; width: 290px; background: #fff; border-radius: 18px; box-shadow: 0 20px 50px rgba(10,20,40,.2); padding: 16px 18px; border: 1px solid #e6eaef; }
+.fD .ha .t { font-size: 13px; color: #5b6573; display:flex; justify-content: space-between; }
+.fD .ha .v { font-size: 34px; font-weight: 600; letter-spacing: -.02em; }
+.fD .ha .hist { width: 100%; height: 50px; display:block; }
+.fD .ha .h-line { stroke: #0a84c6; stroke-width: 2; vector-effect: non-scaling-stroke; } .fD .ha .h-area { fill: rgba(10,132,198,.1); }
+.fD .arrow { position: absolute; left: 300px; top: 150px; width: 90px; height: 60px; }
+.fD .feat { display:grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #e6eaef; margin: 20px 64px; border: 1px solid #e6eaef; border-radius: 18px; overflow: hidden; }
+.fD .feat div { background: #fff; padding: 18px 20px; }
+.fD .feat b { display:block; margin-bottom: 4px; }
+.fD .feat span { color: #5b6573; font-size: 15px; }
+.fD .band { margin: 26px 64px 40px; background: #10151b; color: #fff; border-radius: 20px; padding: 26px 30px; display:flex; align-items:center; gap: 24px; }
+.fD .band ol { margin: 0; padding-left: 20px; color: #c3cbd5; font-size: 15px; flex: 1; }
+.fD .band .inst { background: #4cc3ff; color: #04131d; }
+</style>
+<div class="dir-head">
+  <div><h2>D · Atelier<small>La photo est l'écran</small></h2>
+    <p>La photo occupe tout l'écran, avec la lecture posée dessus. Le réglage se fait sur place : on clique sur une
+      graduation, une bulle demande sa valeur, sans tableau. Les réglages arrivent dans un tiroir. L'accueil ajoute
+      14 jours d'historique gardés par l'appareil.</p></div>
+  <div class="pc"><h4>Pour</h4><ul><li>Réglage le plus direct : un geste de moins par point</li><li>Photo en grand, utile pour juger la netteté</li><li>Consommation et autonomie sans passer par HA</li></ul></div>
+  <div class="pc"><h4>Contre</h4><ul><li>Historique à coder dans le firmware, perdu au redémarrage</li><li>Doublonne Home Assistant</li><li>Texte sur photo : lisibilité variable, flou coûteux sur vieux téléphone</li></ul></div>
+</div>
+<div class="row">
+<div>
+<div class="frame" id="D-dev"><div class="bar"><i></i><i></i><i></i><span>gauge-cam-3f2a1c.local</span></div>
+<div class="fit"><div class="vp dD" data-w="1200" data-h="760">
+  <div class="screen on" data-screen="home"><div class="stage">{{PHOTO:live:#4cc3ff:99,6 cm}}</div>
+    <div class="readout gl"><div class="v">3 116 <small>L</small></div>
+      <div class="r"><span><b>70,5 %</b> rempli</span><span><b>≈ 9,5 L</b> par jour</span><span><b>≈ 330 j</b> d'autonomie</span></div>
+      {{HIST_D}}<div class="hlab"><span>il y a 14 jours</span><span>livraison</span><span>aujourd'hui</span></div></div>
+    <div class="side gl"><div><span>Lecture</span>il y a 3 s</div><div><span>Prochaine</span>10:45</div><div><span>Contraste</span>103</div><div><span>Firmware</span>v0.1.0</div></div>
+  </div>
+  <div class="screen" data-screen="dial"><div class="stage">{{PHOTO:calibl:#4cc3ff::always}}</div>
+    <div class="tools gl"><button data-tool="roi">Contour</button><button data-tool="pivot">Centre</button><button data-tool="start">Début</button><button data-tool="end">Fin</button><button data-tool="point" class="on">Points</button></div>
+    <div class="tip gl">Clique sur une graduation pour l'ajouter, sur un point pour le déplacer</div>
+    <div class="bubble gl" data-bubble hidden><input inputmode="decimal" placeholder="valeur" id="D-bubble-in"><small>cm</small><button class="gbtn pri" data-bubble-ok id="D-bubble-ok">OK</button></div>
+  </div>
+  <div class="topbar gl">{{LOGO}}<b>Cuve mazout</b><div class="st"><span>Wi-Fi</span><span>MQTT</span></div>
+    <button class="gbtn ml" data-go="home">Lecture</button><button class="gbtn" data-go="dial" id="D-t-dial">Régler le cadran</button><button class="gbtn" data-open=".drawer" id="D-t-set">Réglages</button><button class="gbtn pri">Lire</button></div>
+  <div class="drawer gl">
+    <h3>Réglages <button class="gbtn" data-open=".drawer">Fermer</button></h3>
+    <div class="sec"><button data-open=".sec-tank" id="D-sec-tank">Cuve <small>cylindre couché</small></button></div>
+    <div class="sec sec-tank"><div class="body form" data-autosave="1">
+      <div class="shapes">
+        <button type="button" data-shape="box">{{ICON_BOX}}Boîte</button>
+        <button type="button" data-shape="hcyl" class="on">{{ICON_HCYL}}Couché</button>
+        <button type="button" data-shape="vcyl">{{ICON_VCYL}}Debout</button>
+        <button type="button" data-shape="table" id="D-shape-table">{{ICON_TABLE}}Table</button></div>
+      <div class="fld">
+        <label class="f" data-shapes="box hcyl">Longueur cm<input value="250"></label>
+        <label class="f" data-shapes="box" hidden>Largeur cm<input value="100"></label>
+        <label class="f" data-shapes="hcyl vcyl">Diamètre cm<input value="150"></label>
+        <label class="f" data-shapes="box vcyl" hidden>Hauteur cm<input value="150"></label>
+        <label class="f" data-shapes="table" hidden>Table<input value="0 0 · 40 520 · 150 3000"></label>
+        <label class="f">Décalage cm<input value="0"></label></div>
+      <p class="saved">Capacité <span data-cap>4 418 L</span> · enregistré</p></div></div>
+    <div class="sec"><button>Mesure <small>30 min · 3 photos</small></button></div>
+    <div class="sec"><button>Prise de vue <small>flash 50 %</small></button></div>
+    <div class="sec"><button>Wi-Fi et MQTT <small>connecté</small></button></div>
+    <div class="sec"><button>Mises à jour <small>v0.1.0</small></button></div>
+    <div class="sec"><button>Système et journal <small>2 j</small></button></div>
+  </div>
+</div></div></div>
+<p class="cap"><span>« Régler le cadran » puis clic sur la photo ouvre la bulle ; « Réglages » ouvre le tiroir.</span><button data-big="D-dev">Agrandir</button></p>
+</div>
+<div>
+<div class="phone" id="D-mob"><div class="fit"><div class="vp dD m" data-w="390" data-h="800">
+  <div class="stage">{{PHOTO:live:#4cc3ff:99,6 cm}}</div>
+  <div class="topbar gl">{{LOGO}}<b>Cuve mazout</b><button class="gbtn ml">⋯</button></div>
+  <div class="sheet"><div class="grab"></div>
+    <div class="v">3 116 <small>L · 70,5 %</small></div>
+    <div style="color:var(--mut);font-size:14px;margin:2px 0 14px">≈ 9,5 L par jour · ≈ 330 jours d'autonomie</div>
+    {{HIST_D}}<div class="hlab"><span>14 jours</span><span>aujourd'hui</span></div>
+    <button class="gbtn pri" style="width:100%;margin-top:16px;padding:12px">Lire maintenant</button></div>
+</div></div></div>
+<p class="cap"><span>Téléphone : photo en haut, feuille de lecture en bas.</span><button data-big="D-mob">Agrandir</button></p>
+</div>
+</div>
+<div class="frame" id="D-fl"><div class="bar"><i></i><i></i><i></i><span>tdebuilt.github.io/gauge-cam/</span></div>
+<div class="fit"><div class="vp fD" data-w="1200" data-h="820"><div class="scroll">
+  <div class="fhd">{{LOGO}}<b>Gauge Cam</b><div class="gh"><span>Fonctionnement</span><span>Documentation</span><span>GitHub</span><span>FR · EN</span><button class="mini">Installer</button></div></div>
+  <div class="hero">
+    <div><h1>De la jauge à <span>Home Assistant</span>, sans toucher à la cuve.</h1>
+      <p>Un ESP32-CAM face à la jauge à aiguille. Il lit le niveau, calcule les litres et les publie par MQTT, découverte automatique comprise.</p>
+      <button class="inst">Installer sur l'ESP32-CAM</button><span class="ver">v0.1.0 · Chrome ou Edge</span></div>
+    <div class="combo">{{PHOTO:live:#4cc3ff:99,6 cm}}
+      <svg class="arrow" viewBox="0 0 90 60"><path d="M4 40 C 30 10, 60 10, 82 30" fill="none" stroke="#0a84c6" stroke-width="3" stroke-dasharray="5 5"/><path d="M74 22l10 9-13 3" fill="none" stroke="#0a84c6" stroke-width="3"/></svg>
+      <div class="ha"><div class="t"><span>Mazout · volume</span><span>HA</span></div><div class="v">3 116 L</div>{{HIST_D_SMALL}}<div class="t"><span>70,5 %</span><span>il y a 3 s</span></div></div></div>
+  </div>
+  <div class="feat">
+    <div><b>Aiguille et échelle réelles</b><span>Pivot décalé, graduations irrégulières, zone rouge : on clique les graduations.</span></div>
+    <div><b>Litres selon la cuve</b><span>Parallélépipède, cylindre couché ou debout, ou table de jaugeage.</span></div>
+    <div><b>Découverte Home Assistant</b><span>Niveau, volume, remplissage et diagnostic, sans YAML.</span></div>
+    <div><b>Mises à jour sûres</b><span>Depuis Home Assistant, retour à l'ancienne version en cas d'échec.</span></div>
+    <div><b>Lectures filtrées</b><span>Une valeur aberrante attend confirmation, avec sa photo.</span></div>
+    <div><b>Sans carte SD</b><span>Tout tient dans la mémoire de l'ESP32-CAM.</span></div>
+  </div>
+  <div class="band"><ol><li>ESP32-CAM sur sa carte ESP32-CAM-MB, en USB</li><li>Installer, choisir le port série</li><li>Choisir le Wi-Fi, puis régler le cadran</li></ol><button class="inst">Installer sur l'ESP32-CAM</button></div>
+</div></div></div></div>
+<p class="cap"><span>Page d'installation en page produit : ce qu'on obtient avant comment l'installer.</span><button data-big="D-fl">Agrandir</button></p>
+</section>

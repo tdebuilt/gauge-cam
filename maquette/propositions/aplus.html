@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gauge Cam — direction B, tour 1 : la mise en service</title>
+<style>
+{{FONTS}}
+:root { --ink:#1b1f24; --mut:#5d6573; --line:#dde1e7; --bg:#f3f4f6; --card:#fff; --acc:#2456d6; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin:0; font-family: Inter, system-ui, sans-serif; color:var(--ink); background:var(--bg); line-height:1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+.top { padding-top: 40px; padding-bottom: 6px; }
+.top h1 { font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 2rem; margin: 0 0 6px; letter-spacing: -.02em; }
+.top p { color: var(--mut); margin: 0 0 8px; max-width: 86ch; }
+.acq { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin: 14px 0; font-size: .92rem; }
+.acq b { color: #17804a; }
+.frame { background: #d5d9e0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(20,30,50,.12); }
+.frame .bar { height: 30px; background: #e9ebef; display:flex; align-items:center; gap: 6px; padding: 0 12px; }
+.frame .bar i { width: 10px; height: 10px; border-radius: 50%; background: #c4c8cf; display:block; }
+.frame .bar span { margin-left: 10px; flex: 1; max-width: 420px; background: #fff; border-radius: 6px; font-size: 12px; color: #667; padding: 2px 10px; }
+.fit { position: relative; overflow: hidden; }
+.vp { position: absolute; top: 0; left: 0; transform-origin: 0 0; overflow: hidden; }
+.screen { display: none; position: absolute; inset: 0; overflow: auto; }
+.screen.on { display: block; }
+.ph { position: relative; aspect-ratio: 525 / 456; background: #222 url({{PHOTO_IMG}}) center / cover no-repeat; overflow: hidden; }
+.ph .ov, .ph .marks { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ph .marks { pointer-events: none; }
+.ph[data-pick] { cursor: crosshair; }
+.mk { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #f5a524; border: 2px solid #111; }
+.mk b { position: absolute; left: 12px; top: -20px; background: rgba(10,14,20,.85); color: #fff; font: 600 11px Inter, sans-serif; padding: 1px 6px; border-radius: 8px; }
+.toast { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1b1f24; color: #fff; padding: 8px 16px; border-radius: 10px; font-size: 14px; z-index: 50; }
+.cap { font-size: .85rem; color: var(--mut); margin: 6px 2px 0; }
+.count { display:flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 0; font-size: .92rem; }
+.count b { font-variant-numeric: tabular-nums; }
+h2.sec { font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 1.5rem; margin: 40px 0 6px; }
+.blk { display:grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 22px; align-items: start; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin: 16px 0; }
+.blk.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr); }
+.blk h3 { margin: 0 0 6px; font-family: Manrope, Inter, sans-serif; font-size: 1.15rem; }
+.blk p { margin: 0 0 10px; }
+.blk .why { color: var(--mut); font-size: .92rem; }
+.ans { display:flex; gap: 8px; margin: 12px 0 8px; }
+.ans button { font: inherit; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+.ans button.on[data-a="Oui"] { background: #17804a; border-color: #17804a; color: #fff; }
+.ans button.on[data-a="À revoir"] { background: #c27c00; border-color: #c27c00; color: #fff; }
+.ans button.on[data-a="Non"] { background: #c62828; border-color: #c62828; color: #fff; }
+.blk textarea { width: 100%; font: inherit; font-size: .92rem; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 58px; resize: vertical; }
+.lab { font-size: .8rem; color: var(--mut); margin: 6px 0 0; }
+.recap { background: var(--card); border: 2px solid var(--acc); border-radius: 14px; padding: 18px 20px; margin: 30px 0 60px; }
+.recap textarea { width: 100%; min-height: 220px; font: 13px/1.5 "IBM Plex Mono", monospace; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.recap button { font: inherit; font-weight: 600; padding: 9px 18px; border-radius: 10px; border: 0; background: var(--acc); color: #fff; cursor: pointer; margin-top: 8px; }
+@media (max-width: 1000px) { .blk, .blk.two { grid-template-columns: 1fr; } }
+
+/* Direction B, from b.html */
+{{B_CSS}}
+
+/* Wizard */
+.dB .wz-hd { display:flex; align-items:center; gap: 14px; padding: 0 24px; height: 62px; border-bottom: 1px solid var(--line); }
+.dB .wz-t { color: var(--mut); padding-left: 14px; border-left: 1px solid var(--line); }
+.dB .prog { display:flex; gap: 6px; margin-left: auto; align-items: center; }
+.dB .prog span { font-size: 12px; color: #5f6a76; display:flex; align-items:center; gap: 6px; }
+.dB .prog span i { width: 34px; height: 4px; border-radius: 2px; background: var(--line); display:block; }
+.dB .prog span.done i { background: var(--teal); }
+.dB .prog span.cur { color: var(--ink); font-weight: 600; }
+.dB .prog span.cur i { background: var(--amb); }
+.dB .lnk { font: inherit; font-size: 14px; border: 0; background: none; color: var(--mut); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.dB .wz-hd .lnk { margin-left: 16px; }
+.dB .wz-welcome { max-width: 760px; margin: 40px auto 0; }
+.dB .ok-wifi, .dB .okline { color: var(--teal); font-size: 14px; display:flex; gap: 8px; align-items: center; }
+.dB .ok-wifi span, .dB .okline span { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 8px var(--teal); }
+.dB .wz-welcome h1 { font-family: Manrope, sans-serif; font-weight: 800; font-size: 36px; letter-spacing: -.02em; margin: 14px 0 22px; }
+.dB .wz-list { list-style: none; margin: 0; padding: 0; display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dB .wz-list li { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display:grid; grid-template-columns: 30px 1fr; column-gap: 10px; }
+.dB .wz-list em { grid-row: span 2; font-style: normal; font-family: "IBM Plex Mono", monospace; color: var(--amb); font-size: 18px; }
+.dB .wz-list span { color: var(--mut); font-size: 14px; }
+.dB .wz-foot { display:flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 22px; }
+.dB .wz-welcome .wz-foot { justify-content: flex-start; }
+.dB .wz-two { display:grid; grid-template-columns: 600px minmax(0, 1fr); gap: 28px; padding: 22px 24px; align-items: start; }
+.dB .wz-two .ph { border-radius: 14px; }
+.dB .wz-n { font-family: "IBM Plex Mono", monospace; color: var(--amb); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.dB .wz-side h2, .dB .wz-one h2 { font-family: Manrope, sans-serif; font-weight: 800; font-size: 26px; line-height: 1.2; margin: 8px 0 8px; letter-spacing: -.01em; }
+.dB .mut { color: var(--mut); }
+.dB .amb { color: var(--amb); }
+.dB .rg { display:flex; flex-direction: column; gap: 6px; margin: 18px 0 10px; color: var(--mut); font-size: 13px; }
+.dB .rg span { display:flex; gap: 10px; align-items: center; }
+.dB .rg input { flex: 1; accent-color: var(--amb); }
+.dB .rg output { color: var(--ink); font-family: "IBM Plex Mono", monospace; }
+.dB .rot { display:flex; gap: 8px; align-items: center; color: var(--mut); font-size: 13px; }
+.dB .rot span { margin-right: 6px; }
+.dB .btn.sm { padding: 6px 12px; font-size: 13px; font-weight: 500; }
+.dB .hint2 { border-left: 3px solid var(--amb); padding: 4px 0 4px 12px; color: var(--mut); font-size: 14px; margin: 16px 0; }
+.dB .more summary { color: var(--mut); cursor: pointer; font-size: 14px; }
+.dB .btn[disabled] { opacity: .4; cursor: not-allowed; }
+.dB .framewrap { position: relative; overflow: hidden; border-radius: 14px; }
+.dB .cropbox { position: absolute; left: 13%; top: 7%; width: 74%; height: 84%; border: 2px solid #ffc83d; box-shadow: 0 0 0 999px rgba(0,0,0,.45); border-radius: 4px; }
+.dB .cropbox i { position: absolute; width: 14px; height: 14px; background: #ffc83d; border-radius: 3px; }
+.dB .cropbox i:nth-child(1) { left: -8px; top: -8px; } .dB .cropbox i:nth-child(2) { right: -8px; top: -8px; }
+.dB .cropbox i:nth-child(3) { left: -8px; bottom: -8px; } .dB .cropbox i:nth-child(4) { right: -8px; bottom: -8px; }
+.dB .hubmark { position: absolute; left: 48%; top: 52.6%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 2px solid var(--teal); border-radius: 50%; box-shadow: 0 0 10px var(--teal); }
+.dB .model { display:flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--mut); margin: 10px 0 14px; }
+.dB .model select { font: inherit; font-size: 14px; color: var(--ink); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; }
+.dB .big-n { font-family: "IBM Plex Mono", monospace; color: var(--amb); font-size: 34px; }
+.dB .chips-seq { display:flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.dB .chips-seq span { font-family: "IBM Plex Mono", monospace; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; color: var(--mut); }
+.dB .chips-seq span.done { background: #3cc6a522; border-color: var(--teal); color: var(--teal); }
+.dB .chips-seq span.cur { border-color: var(--amb); color: var(--amb); }
+.dB .kv2 { display:grid; grid-template-columns: 1fr auto; gap: 8px 16px; margin: 18px 0; font-size: 14px; }
+.dB .kv2 span { color: var(--mut); } .dB .kv2 b { font-family: "IBM Plex Mono", monospace; font-weight: 500; }
+.dB .wz-one { max-width: 860px; margin: 26px auto 0; padding: 0 24px; }
+.dB .mode { display:flex; gap: 6px; align-items:center; margin: 0 0 16px; color: var(--mut); font-size: 14px; }
+.dB .mode button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--panel2); color: var(--mut); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.dB .mode button.on { border-color: var(--amb); color: var(--amb); }
+.dB .fld2 { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.dB .fld3 { display:grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 16px; margin-top: 16px; }
+.dB label.f small { text-transform: none; letter-spacing: 0; font-size: 12px; color: #5f6a76; }
+.dB .calc { font-family: "IBM Plex Mono", monospace; color: var(--amb); margin: 16px 0 0; min-height: 1.5em; }
+.dB .pnl.ready { border-color: #3cc6a566; } .dB .pnl.ready p { margin: 0; font-size: 14px; color: #c9d1d9; }
+.dB .pnl.todo ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.dB .pnl.todo li { display:grid; grid-template-columns: 1fr auto; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.dB .pnl.todo li span { color: var(--mut); font-size: 13px; grid-column: 1; }
+.dB .pnl.todo li .btn { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+.dB .pnl.todo li.ok { color: var(--teal); display:block; }
+.dB .pnl.todo li.ok::before { content: "✓  "; }
+.dB .tbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; } .dB .tbar i { display:block; height: 100%; width: 66%; background: var(--amb); }
+.dB .leds span.off::before { background: #5f6a76; box-shadow: none; }
+.dB .bubble { position: absolute; z-index: 30; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display:flex; gap: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.dB .bubble input { width: 80px; font: inherit; font-family: "IBM Plex Mono", monospace; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; }
+
+/* Light theme of B */
+.dB.light { --bg:#f6f4ef; --panel:#ffffff; --panel2:#f1eee8; --ink:#1d2329; --mut:#67707b; --line:#e2ded6; --amb:#c77700; --teal:#13896b; }
+.dB.light .inst { background: radial-gradient(120% 90% at 50% 20%, #ffffff, #f4f1eb); }
+.dB.light .g-track { stroke: #e8e4dc; } .dB.light .g-ticks line { stroke: #b9b3a8; } .dB.light .g-val { filter: none; }
+.dB.light .pnl.ready p { color: var(--ink); }
+.dB.light .leds span::before { box-shadow: none; }
+
+/* esp-web-tools dialog (its own look, not themed) */
+.ewt { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 430px; background: #fff; color: #1d1b20; border-radius: 28px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.5); font-family: Roboto, Inter, sans-serif; z-index: 5; }
+.ewt h4 { margin: 0 0 14px; font-size: 22px; font-weight: 500; }
+.ewt p { margin: 0 0 6px; color: #49454f; font-size: 15px; }
+.ewt .acts { display:flex; flex-direction: column; gap: 4px; margin-top: 16px; }
+.ewt .acts span { color: #6750a4; font-weight: 500; padding: 8px 0; font-size: 15px; }
+.ewt .acts span.main { background: #6750a4; color: #fff; border-radius: 20px; text-align: center; }
+.ewt-dim { position: absolute; inset: 0; background: rgba(0,0,0,.55); z-index: 4; }
+</style>
+</head>
+<body>
+<div class="wrap top">
+  <h1>Direction B — tour 1 : la mise en service</h1>
+  <p>Le parcours de la première mise en service, de la page d'installation jusqu'aux valeurs dans Home Assistant.
+    En haut, le parcours complet est cliquable de bout en bout. En dessous, un bloc par point à trancher :
+    <b>Oui</b>, <b>À revoir</b> ou <b>Non</b>, avec une remarque si tu veux. Le récapitulatif en bas de page se copie
+    dans la conversation. Données fictives, comme au tour 0.</p>
+  <div class="acq">Acquis au tour 0 : <b>base B</b> (jauge, trois onglets, même identité sur la page d'installation),
+    <b>bulle sur la photo</b> pour les points d'échelle (de D), <b>liste « ce qui manque »</b> sur l'accueil (de C).</div>
+</div>
+<div class="wrap">
+  <h2 class="sec">Le parcours complet</h2>
+  <div class="frame" id="tour"><div class="bar"><i></i><i></i><i></i><span>gauge-cam-3f2a1c.local</span></div>
+    <div class="fit"><div class="vp dB" data-w="1200" data-h="760" data-start="welcome">{{ALL_STEPS}}
+      <div class="bubble" data-bubble hidden><input inputmode="decimal" placeholder="valeur"><button class="btn pri sm" data-bubble-ok>OK</button></div></div></div></div>
+  <div class="count"><span>Du premier écran à la fin : <b id="g-total">{{G_TOTAL}}</b> gestes</span><span>dont <b>13</b> clics de graduation</span><span>et <b>4</b> saisies (capacité, serveur, utilisateur, mot de passe)</span><span>« Plus tard » à chaque étape mène à l'accueil avec la liste de ce qui manque</span></div>
+  <p class="cap">Compté par un parcours automatique sur cette page. « Placer les autres (démo) » remplit les graduations restantes pour aller vite.</p>
+
+  <h2 class="sec">Les points à trancher</h2>
+  {{BLOCKS}}
+
+  <div class="recap"><h3 style="margin:0 0 8px;font-family:Manrope,sans-serif">Récapitulatif à coller dans la conversation</h3>
+    <textarea id="recap" readonly></textarea><br><button id="copy">Copier</button> <span id="copied" class="cap"></span></div>
+</div>
+<script>
+const POINTS = {{POINTS_PCT}};
+const KEY = "gc-aplus-t1";
+function fitAll() {
+  document.querySelectorAll(".fit").forEach((fit) => {
+    const vp = fit.querySelector(".vp");
+    const w = +vp.dataset.w, h = +vp.dataset.h, s = fit.clientWidth / w;
+    vp.style.width = w + "px"; vp.style.height = h + "px";
+    vp.style.transform = `scale(${s})`; fit.style.height = h * s + "px";
+  });
+}
+window.addEventListener("resize", fitAll);
+new ResizeObserver(fitAll).observe(document.body);
+fitAll();
+
+function show(vp, name) {
+  vp.querySelectorAll(":scope > .screen").forEach((s) => s.classList.toggle("on", s.dataset.screen === name));
+}
+document.querySelectorAll(".vp[data-start]").forEach((vp) => show(vp, vp.dataset.start));
+function toast(vp, text) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = text;
+  vp.appendChild(t); setTimeout(() => t.remove(), 1400);
+}
+
+// Graduation sequence.
+const SEQ = [0, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150];
+function seqState(scr) {
+  const marks = scr.querySelectorAll(".mk.seq").length;
+  const next = SEQ[marks];
+  scr.querySelector("[data-seq-next]").textContent = next ?? "";
+  scr.querySelector(".seq-todo").hidden = marks >= SEQ.length;
+  scr.querySelector(".seq-done").hidden = marks < SEQ.length;
+  scr.querySelector("[data-seq-continue]").disabled = marks < SEQ.length;
+  scr.querySelector("[data-seq-chips]").innerHTML = SEQ.map((v, i) =>
+    `<span class="${i < marks ? "done" : i === marks ? "cur" : ""}">${v}</span>`).join("");
+}
+function addMark(ph, x, y, label, cls) {
+  const mk = document.createElement("i");
+  mk.className = "mk " + (cls || ""); mk.style.left = x + "%"; mk.style.top = y + "%";
+  if (label !== undefined) mk.innerHTML = `<b>${label}</b>`;
+  ph.querySelector(".marks").appendChild(mk);
+}
+document.querySelectorAll('.screen[data-screen="grad"]').forEach(seqState);
+
+const CAPS = { box: (c, h) => `Surface au sol calculée : ${(c * 1000 / h / 10000).toFixed(2).replace(".", ",")} m²`,
+  hcyl: (c, h) => `Diamètre = hauteur = ${h} cm · longueur calculée : ${Math.round(c * 1000 / (Math.PI * (h / 2) ** 2))} cm`,
+  vcyl: (c, h) => `Diamètre calculé : ${Math.round(2 * Math.sqrt(c * 1000 / (Math.PI * h)))} cm`,
+  table: () => "Une zone de texte remplace ces champs : une ligne « niveau litres » par point." };
+function calc(form) {
+  const shape = form.querySelector("[data-shape].on")?.dataset.shape;
+  const c = parseFloat(form.querySelector('[data-calc="cap"]').value), h = parseFloat(form.querySelector('[data-calc="h"]').value);
+  const out = form.querySelector("[data-calc-out]");
+  if (!shape) out.textContent = "Choisis une forme.";
+  else if (shape === "table") out.textContent = CAPS.table();
+  else if (!(c > 0 && h > 0)) out.textContent = "Saisis la capacité inscrite sur la cuve.";
+  else out.textContent = CAPS[shape](c, h);
+}
+document.addEventListener("input", (e) => { const f = e.target.closest("[data-calc-form]"); if (f) calc(f); });
+
+document.addEventListener("click", (e) => {
+  const vp = e.target.closest(".vp");
+  if (!vp) return;
+  const go = e.target.closest("[data-go]");
+  if (go && !go.disabled) show(vp, go.dataset.go);
+  const shape = e.target.closest("[data-shape]");
+  if (shape) {
+    const form = shape.closest(".form");
+    form.querySelectorAll("[data-shape]").forEach((b) => b.classList.toggle("on", b === shape));
+    calc(form);
+  }
+  const mode = e.target.closest(".mode button");
+  if (mode) mode.parentNode.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === mode));
+  const scr = e.target.closest('.screen[data-screen="grad"]');
+  const ph = e.target.closest("[data-pick]");
+  if (ph && scr) {
+    const r = ph.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+    const n = scr.querySelectorAll(".mk.seq").length;
+    if (n < SEQ.length) { addMark(ph, x, y, SEQ[n], "seq"); seqState(scr); }
+    else {
+      addMark(ph, x, y);
+      const bubble = vp.querySelector("[data-bubble]");
+      if (bubble) {
+        const s = vp.getBoundingClientRect().width / vp.offsetWidth, br = vp.getBoundingClientRect();
+        bubble.hidden = false;
+        bubble.style.left = (e.clientX - br.left) / s + 14 + "px"; bubble.style.top = (e.clientY - br.top) / s - 22 + "px";
+        bubble.querySelector("input").value = ""; bubble.querySelector("input").focus();
+      }
+    }
+  }
+  if (e.target.closest("[data-bubble-ok]")) { e.target.closest("[data-bubble]").hidden = true; toast(vp, "Point ajouté"); }
+  if (e.target.closest("[data-seq-auto]") && scr) {
+    const p = scr.querySelector("[data-pick]");
+    for (let n = scr.querySelectorAll(".mk.seq").length; n < SEQ.length; n++) addMark(p, POINTS[n][0], POINTS[n][1], SEQ[n], "seq");
+    seqState(scr);
+  }
+  if (e.target.closest("[data-seq-undo]") && scr) {
+    const all = scr.querySelectorAll(".mk.seq"); if (all.length) all[all.length - 1].remove(); seqState(scr);
+  }
+  const test = e.target.closest("[data-test-go]");
+  if (test) {
+    const st = test.closest(".screen").querySelector("[data-test-status]");
+    st.textContent = "Connexion au serveur MQTT…";
+    setTimeout(() => { st.textContent = "Connecté. Home Assistant a reçu l'appareil « Cuve mazout »."; }, 500);
+    setTimeout(() => show(vp, test.dataset.testGo), 1300);
+  }
+});
+
+// Answers.
+const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+function recap() {
+  const lines = ["Tour 1, direction B (mise en service) :"];
+  document.querySelectorAll(".blk").forEach((b) => {
+    const k = b.dataset.k, a = saved[k]?.a || "—", note = (saved[k]?.note || "").trim();
+    lines.push(`${b.dataset.n}. ${b.querySelector("h3.q").textContent.replace(/^\d+\.\s*/, "")} : ${a}${note ? " — " + note : ""}`);
+  });
+  document.getElementById("recap").value = lines.join("\n");
+}
+document.querySelectorAll(".blk").forEach((b) => {
+  const k = b.dataset.k, st = saved[k] || {};
+  b.querySelectorAll(".ans button").forEach((btn) => {
+    btn.classList.toggle("on", btn.dataset.a === st.a);
+    btn.addEventListener("click", () => {
+      saved[k] = { ...(saved[k] || {}), a: btn.dataset.a };
+      b.querySelectorAll(".ans button").forEach((x) => x.classList.toggle("on", x === btn));
+      localStorage.setItem(KEY, JSON.stringify(saved)); recap();
+    });
+  });
+  const ta = b.querySelector("textarea"); ta.value = st.note || "";
+  ta.addEventListener("input", () => { saved[k] = { ...(saved[k] || {}), note: ta.value }; localStorage.setItem(KEY, JSON.stringify(saved)); recap(); });
+});
+recap();
+document.getElementById("copy").addEventListener("click", () => {
+  const ta = document.getElementById("recap"); ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+  if (!ok && navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => {}, () => {});
+  document.getElementById("copied").textContent = ok ? "Copié." : "Sélectionné : Ctrl+C pour copier.";
+});
+</script>
+</body>
+</html>
