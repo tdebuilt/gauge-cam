@@ -6,7 +6,7 @@ tools/oil_dial.py at 100 cm (placed in a 640x480 frame, like a VGA capture) and 
 C++ code through build/gauge_cli.
 
     test/host/run.sh            # builds build/gauge_cli too
-    python3 tools/mock_device.py [port]
+    python3 tools/mock_device.py [port [address]]
 
 POST /mock/level?v=40 redraws the dial at another level (to try the jump
 filter and the list of refused readings). The update check always finds a
@@ -397,8 +397,9 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+    host = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"  # e.g. a LAN address for a demo
     log("gauge-cam v0.1.0 (gauge-cam-mock01), started by: poweron")
     log("Wi-Fi connected to maison (-61 dBm): http://127.0.0.1/")
     capture(CONFIG)
-    print(f"mock gauge-cam on http://127.0.0.1:{port}/")
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    print(f"mock gauge-cam on http://{host}:{port}/")
+    ThreadingHTTPServer((host, port), Handler).serve_forever()
