@@ -28,8 +28,8 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
   peuvent être fixés pour que chaque photo soit identique.
 - **Prise de vue réglée à côté de la photo**, comme dans AI-on-the-edge : intensité de la LED,
   rotation (0, 90, 180, 270°, pour une caméra montée de côté), retournements, résolution, luminosité
-  et contraste. Chaque changement reprend une photo sans rien enregistrer ; le contour, le centre et
-  les points suivent la rotation. La photo est tournée sur l'ESP32 : Home Assistant la reçoit
+  et contraste. Chaque changement reprend une photo sans rien enregistrer ; le cadre, le centre et
+  les graduations suivent la rotation. La photo est tournée sur l'ESP32 : Home Assistant la reçoit
   à l'endroit.
 - **Home Assistant par découverte MQTT** (désactivable, les entités sont alors retirées) : niveau,
   volume, remplissage, heure de la dernière lecture, photo, bouton « Lire maintenant », mise à jour
@@ -71,11 +71,11 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
 1. Ouvre la [page de flash](https://tdebuilt.github.io/gauge-cam/), branche l'ESP32-CAM-MB et
    clique sur *Installer*.
 2. Règle le Wi-Fi quand la page le propose, puis ouvre l'appareil.
-3. Onglet **Cadran** : *Nouvelle photo*, règle la lumière et la rotation si besoin, puis sur
-   l'image : le contour du cadran, le centre de
-   l'aiguille, le début et la fin de l'échelle avec leurs valeurs, puis des points intermédiaires
-   partout où l'espacement des graduations change, zone rouge comprise. *Tester*, puis
-   *Enregistrer*.
+3. Onglet **Cadran**, en quatre étapes : *Photo* (lumière et rotation), *Cadrage* (tirer les coins
+   autour du cadran ; le centre de l'aiguille est trouvé tout seul, un clic le corrige),
+   *Graduations* (choisir le modèle de jauge, puis cliquer les graduations dans l'ordre : la valeur
+   suivante est proposée toute seule ; un clic entre deux graduations ajoute un point et une bulle
+   demande sa valeur), *Vérification* (lecture d'essai : si la valeur est juste, *Oui, enregistrer*).
 4. Onglet **Réglages** : **Cuve** (forme et dimensions intérieures, ou table de jaugeage), puis
    **Réseau et MQTT** (serveur MQTT).
 

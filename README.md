@@ -28,7 +28,7 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
   the same.
 - **Capture settings next to the photo**, as in AI-on-the-edge: LED intensity, rotation (0, 90,
   180, 270°, for a camera mounted sideways), flips, resolution, brightness and contrast. Each change
-  takes a new photo without saving anything; the outline, centre and points follow the rotation.
+  takes a new photo without saving anything; the frame, centre and graduations follow the rotation.
   The photo is rotated on the ESP32, so Home Assistant gets it upright too.
 - **Home Assistant MQTT discovery** (can be turned off, entities are then removed): level, volume,
   fill, time of the last reading, photo, "read now" button, firmware update, and as diagnostics the
@@ -66,9 +66,11 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 1. Open the [flasher page](https://tdebuilt.github.io/gauge-cam/), plug in the ESP32-CAM-MB and
    click *Install*.
 2. Set up Wi-Fi when offered, then open the device.
-3. **Dial** tab: *New photo*, adjust the light and rotation if needed, then on the image: the dial outline, the needle centre, the start
-   and end of the scale with their values, then intermediate points wherever the graduation
-   spacing changes, red zone included. *Test*, then *Save*.
+3. **Dial** tab, in four steps: *Photo* (light and rotation), *Framing* (drag the corners around the
+   dial; the needle centre is found by itself, click to correct it), *Scale* (pick the gauge model,
+   then click the graduations in order: the next value comes by itself; a click between two
+   graduations adds a point and a bubble asks for its value), *Check* (a test reading: if the value
+   is right, *Yes, save*).
 4. **Settings** tab: **Tank** (shape and inner dimensions, or the gauging table), then
    **Network and MQTT** (MQTT server).
 

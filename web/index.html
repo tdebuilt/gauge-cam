@@ -65,62 +65,73 @@
 </section>
 
 <section id="tab-dial" class="tab">
-  <p class="help" data-i18n-html="d.help"></p>
-  <div class="toolbar">
-    <button id="d-photo" class="btn" data-i18n="d.photo"></button>
-    <div class="seg" id="d-tools">
-      <button data-tool="roi" data-i18n="d.tool.roi"></button>
-      <button data-tool="pivot" data-i18n="d.tool.pivot"></button>
-      <button data-tool="start" data-i18n="d.tool.start"></button>
-      <button data-tool="end" data-i18n="d.tool.end"></button>
-      <button data-tool="point" data-i18n="d.tool.point"></button>
+  <div class="cal">
+    <nav class="rail" id="d-steps">
+      <button data-step="photo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span data-i18n="d.step.photo"></span></button>
+      <button data-step="frame"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 12h4M12 10v4" stroke="currentColor" stroke-width="2"/></svg><span data-i18n="d.step.frame"></span></button>
+      <button data-step="grad"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17a8 8 0 1 1 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="5" cy="17" r="2" fill="currentColor"/><circle cx="7" cy="8" r="2" fill="currentColor"/><circle cx="12" cy="5" r="2" fill="currentColor"/></svg><span data-i18n="d.step.grad"></span></button>
+      <button data-step="check"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l2.7 2.7L16 9.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="d.step.check"></span></button>
+    </nav>
+    <div class="dview">
+      <div class="viewer" id="d-viewer"><div class="stage"><img id="d-photo-img" alt=""><canvas id="d-overlay"></canvas>
+        <form class="bubble" id="d-bubble" hidden><input id="d-bubble-value" inputmode="decimal" autocomplete="off" data-i18n-placeholder="d.value"><button class="btn pri" type="submit">OK</button><button class="btn" type="button" id="d-bubble-del" data-i18n-title="d.delete">×</button></form>
+      </div></div>
+      <div class="vbar"><span id="d-dirty" class="dirty" data-i18n="d.dirty" hidden></span></div>
     </div>
-    <label class="inline"><span data-i18n="d.zoom"></span> <select id="d-zoom"><option value="fit" data-i18n="d.zoom.fit"></option><option value="1">100 %</option><option value="2">200 %</option></select></label>
-  </div>
-  <div class="dial-layout">
-    <div class="viewer scroll" id="d-viewer"><div class="stage"><img id="d-photo-img" alt=""><canvas id="d-overlay"></canvas></div></div>
-    <aside class="pnl panel">
-      <details id="d-shot-box" open>
-        <summary data-i18n="d.shot"></summary>
+    <aside class="pnl panel dpanel">
+      <div class="dstep" data-step="photo">
+        <h2 data-i18n="d.photo.title"></h2>
+        <p class="mut" data-i18n="d.photo.help"></p>
         <form id="d-shot" class="shot">
-          <small data-i18n="d.shot.help"></small>
           <label><span data-i18n="c.led"></span>
             <span class="range"><input name="led_intensity" type="range" min="0" max="255" step="5"><output id="d-led-value"></output></span></label>
-          <label><span data-i18n="c.ledMs"></span> <input name="led_ms" type="number" min="0" max="5000" step="50"></label>
           <label><span data-i18n="d.rotation"></span>
             <select name="rotation"><option value="0">0°</option><option value="90">90° ↻</option><option value="180">180°</option><option value="270">270° ↻</option></select></label>
           <label class="check"><input name="vflip" type="checkbox"> <span data-i18n="c.vflip"></span></label>
           <label class="check"><input name="hmirror" type="checkbox"> <span data-i18n="c.hmirror"></span></label>
-          <label><span data-i18n="c.framesize"></span> <select name="framesize"><option>QVGA</option><option>VGA</option><option>SVGA</option></select></label>
-          <label><span data-i18n="c.brightness"></span> <input name="cam_brightness" type="number" min="-2" max="2"></label>
-          <label><span data-i18n="c.contrast"></span> <input name="cam_contrast" type="number" min="-2" max="2"></label>
-          <label class="check"><input name="exposure_auto" type="checkbox"> <span data-i18n="d.exposureAuto"></span></label>
-          <label class="manual-exposure"><span data-i18n="d.exposure"></span>
-            <span class="range"><input name="exposure" type="range" min="0" max="1200" step="10"><output id="d-exposure-value"></output></span></label>
-          <label class="manual-exposure"><span data-i18n="d.gain"></span>
-            <span class="range"><input name="gain" type="range" min="0" max="30" step="1"><output id="d-gain-value"></output></span></label>
-          <small class="manual-exposure" data-i18n="d.exposure.help"></small>
+          <details class="more">
+            <summary data-i18n="common.more"></summary>
+            <label><span data-i18n="c.ledMs"></span> <input name="led_ms" type="number" min="0" max="5000" step="50"></label>
+            <label><span data-i18n="c.framesize"></span> <select name="framesize"><option>QVGA</option><option>VGA</option><option>SVGA</option></select></label>
+            <label><span data-i18n="c.brightness"></span> <input name="cam_brightness" type="number" min="-2" max="2"></label>
+            <label><span data-i18n="c.contrast"></span> <input name="cam_contrast" type="number" min="-2" max="2"></label>
+            <label class="check"><input name="exposure_auto" type="checkbox"> <span data-i18n="d.exposureAuto"></span></label>
+            <label class="manual-exposure"><span data-i18n="d.exposure"></span>
+              <span class="range"><input name="exposure" type="range" min="0" max="1200" step="10"><output id="d-exposure-value"></output></span></label>
+            <label class="manual-exposure"><span data-i18n="d.gain"></span>
+              <span class="range"><input name="gain" type="range" min="0" max="30" step="1"><output id="d-gain-value"></output></span></label>
+            <small class="manual-exposure" data-i18n="d.exposure.help"></small>
+          </details>
         </form>
-      </details>
-      <hr>
-      <p id="d-hint" class="hint"></p>
-      <label><span data-i18n="d.mode"></span>
-        <select id="d-mode">
-          <option value="hub" data-i18n="d.mode.hub"></option>
-          <option value="fixed" data-i18n="d.mode.fixed"></option>
-        </select>
-      </label>
-      <label><span data-i18n="d.unit"></span> <input id="d-unit" size="6"></label>
-      <h3 data-i18n="d.scale"></h3>
-      <table class="points">
-        <thead><tr><th></th><th data-i18n="d.col.value"></th><th></th></tr></thead>
-        <tbody id="d-points"></tbody>
-      </table>
-      <div class="actions">
-        <button id="d-test" class="btn" data-i18n="d.test"></button>
-        <button id="d-save" class="btn pri" data-i18n="common.save"></button>
+        <div class="foot"><button id="d-photo" class="btn" data-i18n="d.retake"></button><button class="btn pri" data-go="frame" data-i18n="common.next"></button></div>
       </div>
-      <p id="d-result" class="status"></p>
+      <div class="dstep" data-step="frame">
+        <h2 data-i18n="d.frame.title"></h2>
+        <p class="mut" data-i18n="d.frame.help"></p>
+        <p class="okline" id="d-pivot-line"></p>
+        <p class="hint" data-i18n="d.pivot.hint"></p>
+        <details class="more">
+          <summary data-i18n="common.more"></summary>
+          <label><span data-i18n="d.mode"></span>
+            <select id="d-mode"><option value="hub" data-i18n="d.mode.hub"></option><option value="fixed" data-i18n="d.mode.fixed"></option></select></label>
+        </details>
+        <div class="foot"><button class="btn" data-go="photo" data-i18n="common.back"></button><button class="btn pri" data-go="grad" data-i18n="common.next"></button></div>
+      </div>
+      <div class="dstep" data-step="grad">
+        <label><span data-i18n="d.model"></span>
+          <select id="d-model"><option value="oil" data-i18n="d.model.oil"></option><option value="pct" data-i18n="d.model.pct"></option><option value="free" data-i18n="d.model.free"></option></select></label>
+        <label id="d-unit-box"><span data-i18n="d.unit"></span> <input id="d-unit" size="6"></label>
+        <h2 id="d-seq-title"></h2>
+        <p class="mut" id="d-seq-help"></p>
+        <div class="chips" id="d-chips"></div>
+        <div class="foot"><button class="btn" id="d-undo" data-i18n="d.undo"></button><button class="btn pri" data-go="check" id="d-to-check" data-i18n="d.continue"></button></div>
+      </div>
+      <div class="dstep" data-step="check">
+        <h2 id="d-check-title"></h2>
+        <p class="mut" id="d-check-help"></p>
+        <dl class="kv" id="d-check-kv"></dl>
+        <div class="foot"><button class="btn" data-go="grad" id="d-check-no"></button><button class="btn" id="d-test"></button><button class="btn pri" id="d-save"></button></div>
+      </div>
     </aside>
   </div>
 </section>

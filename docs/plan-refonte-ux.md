@@ -60,6 +60,17 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
 - Fichiers : `web/app.js`, `web/index.html`, `web/style.css`, `web/i18n.js`. Firmware inchangé.
 - Tests : parcours Playwright sur le simulateur (13 clics, aucune saisie, points envoyés identiques à
   ceux d'aujourd'hui) ; essai sur l'appareil face à la jauge.
+- Fait le 2026-11-14, essai sur l'appareil à faire. Quatre étapes dans l'onglet (Photo, Cadrage,
+  Graduations, Vérification), les noms de la future mise en service. Écarts au plan :
+  - centre trouvé par l'interface (tache sombre la plus contrastée au milieu du cadre), puisque le
+    firmware ne cherche le moyeu qu'avec une échelle ; essai : 2 px de la vérité sur le simulateur,
+    7 px sur la photo de la jauge, le mode `hub` affine ensuite ;
+  - modèle 0–100 % : 0, 25, 50, 75, 100 ;
+  - Graduations et Vérification montrent l'intérieur du cadre agrandi à la largeur de la colonne, à
+    la place du zoom ;
+  - « Enregistrer » seulement à l'étape Vérification, après la lecture d'essai ;
+  - sans cadre enregistré, l'appareil lit toute la photo comme avant : `roi` reste `[0, 0, 0, 0]`
+    tant que le cadre n'est pas touché.
 
 ### 3. v0.4.0 — Mise en service
 

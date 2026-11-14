@@ -83,7 +83,7 @@ function deviceError(message) {
 
 // ---------- overlay drawing ----------
 
-const COLORS = { start: "#2ecc71", end: "#e056fd", point: "#f9ca24", pivot: "#ff3b30",
+const COLORS = { start: "#2ecc71", end: "#e056fd", point: "#f9ca24", extra: "#4fd1c5", pivot: "#ff3b30",
   roi: "#f9ca24", band: "#3498db", needle: "#2ecc71" };
 
 function at(cx, cy, angle, r) {
@@ -106,6 +106,15 @@ function drawOverlay(canvas, img, scene) {
     ctx.strokeStyle = COLORS.roi;
     ctx.strokeRect(...scene.roi);
     ctx.setLineDash([]);
+    if (scene.handles) {
+      const [x, y, w, h] = scene.roi, s = lw * 5;
+      ctx.fillStyle = COLORS.roi;
+      ctx.strokeStyle = "#000";
+      for (const [cx, cy] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) {
+        ctx.fillRect(cx - s, cy - s, 2 * s, 2 * s);
+        ctx.strokeRect(cx - s, cy - s, 2 * s, 2 * s);
+      }
+    }
   }
   const d = scene.detail;
   if (d) {
@@ -207,6 +216,7 @@ function showTab(name) {
   $$("#tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === name));
   $$(".tab").forEach((s) => s.classList.toggle("on", s.id === `tab-${name}`));
   if (name === "dial") dial.enter();
+  else if (dial.bubble) dial.closeBubble(false);
   if (name === "settings" && $("#sub-system").classList.contains("on")) loadLog();
   scrollTo(0, 0);
 }
@@ -410,44 +420,252 @@ $("#r-read").addEventListener("click", (e) => busy(e.target, async () => {
 
 // ---------- dial tab ----------
 
+// Graduations printed on common gauges, in click order. "free": the user
+// types every value.
+const MODELS = {
+  oil: { values: [0, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150], unit: "cm" },
+  pct: { values: [0, 25, 50, 75, 100], unit: "%" },
+  free: { values: [], unit: null },
+};
+const STEPS = ["photo", "frame", "grad", "check"];
+
+// First guess of the needle hub: the dark disc that contrasts most with its
+// surroundings in the middle of the frame (the dial face is light around
+// it, a dark bezel is not). The firmware refines it in hub mode.
+function findHub(img, frame) {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext("2d", { willReadFrequently: true });
+  g.drawImage(img, 0, 0);
+  const px = g.getImageData(0, 0, w, h).data;
+  const W = w + 1, sum = new Float64Array(W * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let row = 0;
+    for (let x = 0; x < w; x++) {
+      const i = 4 * (y * w + x);
+      row += 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      sum[(y + 1) * W + x + 1] = sum[y * W + x + 1] + row;
+    }
+  }
+  // Mean brightness of the square of half-side r around (x, y), clipped to the photo.
+  const mean = (x, y, r) => {
+    const x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1), y0 = Math.max(0, y - r), y1 = Math.min(h, y + r + 1);
+    return (sum[y1 * W + x1] - sum[y0 * W + x1] - sum[y1 * W + x0] + sum[y0 * W + x0]) / ((x1 - x0) * (y1 - y0));
+  };
+  const [fx, fy, fw, fh] = frame;
+  const k = Math.max(2, Math.round(Math.min(fw, fh) * 0.035));
+  const x0 = Math.max(0, Math.round(fx + fw * 0.2)), x1 = Math.min(w - 1, Math.round(fx + fw * 0.8));
+  const y0 = Math.max(0, Math.round(fy + fh * 0.2)), y1 = Math.min(h - 1, Math.round(fy + fh * 0.8));
+  let best = -Infinity, at = null;
+  for (let y = y0; y <= y1; y += 2) {
+    for (let x = x0; x <= x1; x += 2) {
+      const score = mean(x, y, 3 * k) - mean(x, y, k);
+      if (score > best) { best = score; at = [x, y]; }
+    }
+  }
+  return at;
+}
+
 const dial = {
-  tool: "roi",
+  step: "photo",
   draft: null,
-  detail: null,
+  detail: null,     // last test reading on the draft, null when stale
+  testError: "",
+  testLevel: null,
   drag: null,
-  moving: null,
+  bubble: null,     // { p, isNew } while the value bubble is open
   loaded: false,
-  orient: null,  // capture settings of the displayed photo and of the draft coordinates
+  dirty: false,
+  orient: null,     // capture settings of the displayed photo and of the draft coordinates
   capturing: false,
   again: false,
 
+  img: () => $("#d-photo-img"),
+  canvas: () => $("#d-overlay"),
+
   enter() {
     if (!this.loaded && cfg) this.reset();
-    if (!$("#d-photo-img").src && status?.photo) this.loadPhoto();
+    if (!this.img().src && status?.photo) this.loadPhoto();
   },
 
   reset() {
-    const p = cfg.points || [];
-    const pt = (a) => ({ x: a[0], y: a[1], v: a[2] });
+    const saved = (cfg.points || []).map((a) => ({ x: a[0], y: a[1], v: a[2] }));
+    const values = saved.map((p) => p.v);
+    // The model whose printed values the saved points start with.
+    let model = saved.length ? "free" : "oil", count = 0;
+    for (const name of ["oil", "pct"]) {
+      const list = MODELS[name].values;
+      let n = 0;
+      while (n < list.length && values.includes(list[n])) n++;
+      if ((n >= 3 || n === list.length) && n > count) { model = name; count = n; }
+    }
+    const placed = new Set(MODELS[model].values.slice(0, count));
+    const pts = saved.map((p) => {
+      const seq = placed.has(p.v);
+      placed.delete(p.v);
+      return { ...p, extra: !seq };
+    });
+    // Template points first, in click order, so that undo removes the extras first.
+    const order = MODELS[model].values;
+    pts.sort((a, b) => (a.extra - b.extra) || (a.extra ? 0 : order.indexOf(a.v) - order.indexOf(b.v)));
     this.draft = {
       roi: cfg.roi && cfg.roi[2] > 0 ? [...cfg.roi] : null,
       pivot: cfg.pivot_x >= 0 ? [cfg.pivot_x, cfg.pivot_y] : null,
-      start: p.length >= 2 ? pt(p[0]) : null,
-      end: p.length >= 2 ? pt(p[p.length - 1]) : null,
-      mids: p.slice(1, -1).map(pt),
+      pivotAuto: false,
+      model,
+      pts,
+      history: [...pts],
     };
+    $("#d-model").value = model;
     $("#d-mode").value = cfg.pivot_mode;
     $("#d-unit").value = cfg.unit;
     this.orient = pick(cfg, SHOT_KEYS);
     fill($("#d-shot"), this.orient);
-    $("#d-shot-box").open = !(p.length >= 2);  // folded once the dial is set up
     showLed();
     this.loaded = true;
-    this.setTool(this.draft.roi ? (this.draft.pivot ? "point" : "pivot") : "roi");
-    this.renderTable();
+    this.dirty = false;
+    this.detail = null;
+    this.testError = "";
+    this.closeBubble(false);
+    const d = this.draft;
+    this.show(!status?.photo ? "photo" : !d.roi && !d.pivot ? "frame" : saved.length < 2 ? "grad" : "check", false);
   },
 
-  loadPhoto() { $("#d-photo-img").src = `/api/photo.jpg?t=${Date.now()}`; },
+  // ----- state -----
+
+  // The frame on screen. Without a saved one the whole photo is read: the
+  // default frame stays inside the photo so that its corners can be grabbed.
+  frame() {
+    const img = this.img(), w = img.naturalWidth, h = img.naturalHeight, m = Math.round(Math.min(w, h) * 0.05);
+    return this.draft.roi || [m, m, w - 2 * m, h - 2 * m];
+  },
+
+  template() { return MODELS[this.draft.model].values; },
+  seqCount() { return this.draft.pts.filter((p) => !p.extra).length; },
+  nextValue() { return this.template()[this.seqCount()]; },
+
+  isDone(step) {
+    const d = this.draft;
+    if (!d) return false;
+    switch (step) {
+      case "photo": return Boolean(this.img().naturalWidth);
+      case "frame": return Boolean(d.pivot);
+      case "grad": return d.pts.length >= 2 && this.nextValue() === undefined;
+      default: return !this.dirty && Boolean(status?.dial_ready);
+    }
+  },
+
+  changed() {
+    this.dirty = true;
+    this.detail = null;
+    this.testError = "";
+    this.testLevel = null;
+    this.render();
+  },
+
+  // ----- steps -----
+
+  show(step, run = true) {
+    this.closeBubble(false);
+    this.step = step;
+    this.render();
+    if (step === "check" && run && !this.detail && !this.testError) {
+      try { this.payload(); } catch { return; }
+      busy($("#d-test"), () => this.test());
+    }
+  },
+
+  render() {
+    if (!this.draft) return;
+    const d = this.draft;
+    $$("#d-steps button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.step === this.step);
+      b.classList.toggle("done", this.isDone(b.dataset.step));
+    });
+    $$(".dstep").forEach((s) => s.classList.toggle("on", s.dataset.step === this.step));
+    $("#d-viewer").dataset.step = this.step;
+    $("#d-dirty").hidden = !this.dirty;
+
+    // framing
+    const line = $("#d-pivot-line");
+    line.textContent = t(!d.pivot ? "d.pivot.none" : d.pivotAuto ? "d.pivot.found" : "d.pivot.manual");
+    line.classList.toggle("off", !d.pivot);
+
+    // graduations
+    const free = d.model === "free";
+    $("#d-unit-box").hidden = !free;
+    const next = this.nextValue();
+    const title = $("#d-seq-title");
+    if (free) {
+      title.textContent = t("d.seq.free");
+      $("#d-seq-help").textContent = t("d.seq.freeHelp");
+    } else if (next !== undefined) {
+      title.innerHTML = `${t("d.seq.next")} <span class="big-n">${num(next)}</span>`;
+      $("#d-seq-help").textContent = t("d.seq.nextHelp");
+    } else {
+      title.textContent = t("d.seq.done", { n: this.template().length });
+      $("#d-seq-help").textContent = t("d.seq.doneHelp");
+    }
+    const chips = $("#d-chips");
+    chips.innerHTML = "";
+    for (const p of [...d.pts].sort((a, b) => a.v - b.v)) {
+      const c = document.createElement("span");
+      c.className = p.extra ? "chip extra" : "chip";
+      c.textContent = Number.isFinite(p.v) ? num(p.v) : "?";
+      chips.append(c);
+    }
+    $("#d-undo").disabled = !d.history.length;
+    $("#d-to-check").disabled = d.pts.length < 2;
+
+    this.renderCheck();
+    this.layout();
+    this.draw();
+  },
+
+  renderCheck() {
+    const title = $("#d-check-title"), help = $("#d-check-help"), kv = $("#d-check-kv");
+    const unit = this.unit();
+    kv.innerHTML = "";
+    const ok = Boolean(this.detail) && !this.testError;
+    if (ok) {
+      title.innerHTML = t("d.check.reads", { value: `<span class="amb">${num(this.testLevel)}&nbsp;${unit}</span>` });
+      help.textContent = t("d.check.look");
+      for (const [k, v] of [["d.check.contrast", num(this.detail.contrast, 0)], ["d.check.angle", `${num(this.detail.needle_angle)}°`]]) {
+        kv.insertAdjacentHTML("beforeend", "<dt></dt><dd></dd>");
+        kv.lastElementChild.previousElementSibling.textContent = t(k);
+        kv.lastElementChild.textContent = v;
+      }
+    } else if (this.testError) {
+      title.textContent = t("d.check.failed");
+      help.textContent = this.testError;
+    } else {
+      title.textContent = t("d.check.title");
+      help.textContent = t("d.check.help");
+    }
+    const tested = ok || Boolean(this.testError);
+    $("#d-check-no").textContent = t(ok ? "d.check.no" : "d.check.fix");
+    $("#d-test").textContent = t(tested ? "d.check.again" : "d.check.read");
+    $("#d-save").textContent = t(ok ? "d.check.yes" : "d.check.save");
+    $("#d-save").classList.toggle("pri", ok || !tested);
+    $("#d-save").hidden = !this.dirty;  // nothing to save: the device already has it
+    $("#d-test").classList.toggle("pri", false);
+  },
+
+  unit() {
+    return MODELS[this.draft.model].unit || $("#d-unit").value.trim() || "cm";
+  },
+
+  // ----- photo -----
+
+  loadPhoto() { this.img().src = `/api/photo.jpg?t=${Date.now()}`; },
+
+  photoLoaded() {
+    const d = this.draft;
+    if (d && !d.pivot) this.autoPivot();
+    this.render();
+  },
 
   readShot() {
     const v = read($("#d-shot"));
@@ -455,19 +673,15 @@ const dial = {
     return v;
   },
 
-  // Moves the outline, centre and points to a photo taken with `to`.
+  // Moves the frame, centre and points to a photo taken with `to`.
   reorient(to) {
     const from = this.orient;
     this.orient = to;
     if (sameOrient(from, to)) return;
     const d = this.draft;
-    const move = (p) => { if (p) [p.x, p.y] = mapPoint(p.x, p.y, from, to); };
     if (d.roi) d.roi = mapRect(d.roi, from, to);
     if (d.pivot) d.pivot = mapPoint(d.pivot[0], d.pivot[1], from, to);
-    move(d.start);
-    move(d.end);
-    d.mids.forEach(move);
-    this.renderTable();
+    for (const p of d.pts) [p.x, p.y] = mapPoint(p.x, p.y, from, to);
   },
 
   // New photo with the capture settings of the panel, saved or not.
@@ -483,8 +697,7 @@ const dial = {
         const shot = this.readShot();
         await post("/api/capture", shot);
         this.reorient(shot);
-        this.detail = null;  // the last test was on the previous photo
-        $("#d-result").textContent = "";
+        this.changed();
         this.loadPhoto();
       } while (this.again);
     } catch (e) {
@@ -499,179 +712,240 @@ const dial = {
     refresh();
   },
 
-  setTool(tool, moving = null) {
-    this.tool = tool;
-    this.moving = moving;
-    $$("#d-tools button").forEach((b) => b.classList.toggle("on", b.dataset.tool === tool));
-    this.hintKey = `d.hint.${tool}`;
-    $("#d-hint").textContent = t(this.hintKey);
+  autoPivot() {
+    const img = this.img();
+    if (!img.naturalWidth) return;
+    const hub = findHub(img, this.frame());
+    if (!hub) return;
+    this.draft.pivot = hub;
+    this.draft.pivotAuto = true;
   },
+
+  // ----- drawing -----
 
   scene() {
     const d = this.draft;
-    const points = [];
-    if (d.start) points.push({ ...d.start, kind: "start" });
-    for (const m of d.mids) points.push({ ...m, kind: "point" });
-    if (d.end) points.push({ ...d.end, kind: "end" });
-    return { roi: d.roi, pivot: d.pivot, points, detail: this.detail };
+    const byValue = d.pts.filter((p) => Number.isFinite(p.v)).sort((a, b) => a.v - b.v);
+    const lo = byValue[0], hi = byValue[byValue.length - 1];
+    const points = d.pts.map((p) => ({ ...p,
+      kind: p === lo ? "start" : p === hi && byValue.length > 1 && this.nextValue() === undefined ? "end"
+        : p.extra ? "extra" : "point" }));
+    return { roi: this.img().naturalWidth ? this.frame() : null, handles: this.step === "frame",
+      pivot: d.pivot, points, detail: this.detail };
   },
 
-  draw() { drawOverlay($("#d-overlay"), $("#d-photo-img"), this.scene()); },
+  draw() { drawOverlay(this.canvas(), this.img(), this.scene()); },
 
-  changed() {
-    this.detail = null;
-    $("#d-result").textContent = "";
-    this.renderTable();
-    this.draw();
+  // Graduations and check show the inside of the frame, enlarged to the
+  // width of the column: the graduations are far enough apart for a finger.
+  layout() {
+    const img = this.img(), viewer = $("#d-viewer"), stage = viewer.firstElementChild, c = this.canvas();
+    const crop = img.naturalWidth && (this.step === "grad" || this.step === "check");
+    viewer.classList.toggle("crop", Boolean(crop));
+    if (!crop) {
+      for (const el of [viewer, stage, img, c]) el.removeAttribute("style");
+      return;
+    }
+    const [fx, fy, fw, fh] = this.frame();
+    const avail = viewer.parentElement.clientWidth;
+    const s = Math.min(avail / fw, innerHeight * 0.75 / fh, 4);
+    const px = (v) => `${Math.round(v * s)}px`;
+    Object.assign(viewer.style, { width: px(fw), height: px(fh) });
+    Object.assign(stage.style, { left: px(-fx), top: px(-fy) });
+    img.style.width = px(img.naturalWidth);
+    Object.assign(c.style, { width: px(img.naturalWidth), height: px(img.naturalHeight) });
   },
 
-  renderTable() {
-    const d = this.draft;
-    const body = $("#d-points");
-    body.innerHTML = "";
-    const row = (p, kind, label, index) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td><span class="dot" style="background:${COLORS[kind]}"></span> ${label}</td>
-        <td><input type="number" step="any"></td><td></td>`;
-      tr.title = p ? `x ${Math.round(p.x)}, y ${Math.round(p.y)}` : t("d.toPlace");
-      const input = tr.querySelector("input");
-      if (p) input.value = Number.isFinite(p.v) ? p.v : "";
-      else { input.disabled = true; input.placeholder = t("d.toPlace"); }
-      input.addEventListener("input", () => { p.v = input.value === "" ? NaN : Number(input.value); this.detail = null; this.draw(); });
-      const cell = tr.lastElementChild;
-      if (p) {
-        const move = document.createElement("button");
-        move.textContent = t("d.move");
-        move.addEventListener("click", () => this.setTool("move", p));
-        cell.append(move);
-      }
-      if (kind === "point") {
-        const del = document.createElement("button");
-        del.textContent = "×";
-        del.title = t("d.delete");
-        del.addEventListener("click", () => { d.mids.splice(index, 1); this.changed(); });
-        cell.append(del);
-      }
-      body.append(tr);
-      return input;
-    };
-    const inputs = [row(d.start, "start", t("d.row.start"))];
-    d.mids.forEach((m, i) => inputs.push(row(m, "point", t("d.row.point", { n: i + 1 }), i)));
-    inputs.push(row(d.end, "end", t("d.row.end")));
-    return inputs;
-  },
-
-  focusValue(p) {
-    const inputs = this.renderTable();
-    const d = this.draft;
-    const order = [d.start, ...d.mids, d.end];
-    const i = order.indexOf(p);
-    if (i >= 0 && inputs[i]) { inputs[i].focus(); inputs[i].select(); }
-  },
+  // ----- pointer -----
 
   imagePoint(e) {
-    const c = $("#d-overlay");
+    const c = this.canvas();
     const r = c.getBoundingClientRect();
     return [Math.round((e.clientX - r.left) * c.width / r.width),
       Math.round((e.clientY - r.top) * c.height / r.height)];
   },
 
+  // Grab distance in photo pixels: about 14 screen pixels.
+  reach() {
+    const c = this.canvas();
+    return 14 * c.width / c.getBoundingClientRect().width;
+  },
+
   onDown(e) {
-    if (!$("#d-photo-img").naturalWidth) return;
-    e.preventDefault();  // keeps the focus in the value field
+    if (!this.img().naturalWidth || !this.draft) return;
+    if (this.bubble) { this.closeBubble(false); return; }
+    e.preventDefault();
     const [x, y] = this.imagePoint(e);
+    const near = (px, py) => Math.hypot(px - x, py - y) <= this.reach();
     const d = this.draft;
-    switch (this.tool) {
-      case "roi":
-        this.drag = [x, y];
-        d.roi = [x, y, 0, 0];
-        e.target.setPointerCapture(e.pointerId);
-        return;
-      case "pivot":
-        d.pivot = [x, y];
-        this.changed();
-        this.setTool(d.start ? "point" : "start");
-        return;
-      case "start":
-      case "end": {
-        const fallback = this.tool === "start" ? 0 : 150;
-        d[this.tool] = { x, y, v: d[this.tool] ? d[this.tool].v : fallback };
-        const placed = d[this.tool];
-        this.changed();
-        this.setTool(this.tool === "start" && !d.end ? "end" : "point");
-        this.focusValue(placed);
-        return;
-      }
-      case "point": {
-        const p = { x, y, v: NaN };
-        d.mids.push(p);
-        this.changed();
-        this.focusValue(p);
-        return;
-      }
-      case "move":
-        Object.assign(this.moving, { x, y });
-        this.changed();
-        this.setTool("point");
+    let drag = null;
+    if (this.step === "frame") {
+      const [fx, fy, fw, fh] = this.frame();
+      const corners = [[fx, fy], [fx + fw, fy], [fx, fy + fh], [fx + fw, fy + fh]];
+      const i = corners.findIndex(([cx, cy]) => near(cx, cy));
+      if (i >= 0) drag = { kind: "corner", anchor: corners[3 - i] };
+      else if (x >= fx && x <= fx + fw && y >= fy && y <= fy + fh) drag = { kind: "inside", from: [x, y], roi: [fx, fy, fw, fh] };
+      else drag = { kind: "corner", anchor: [x, y], fresh: true };
+    } else if (this.step === "grad") {
+      const p = [...d.pts].reverse().find((q) => near(q.x, q.y));
+      drag = p ? { kind: "point", p, from: [x, y] } : { kind: "add" };
+    } else {
+      return;
     }
+    drag.start = [x, y];
+    drag.moved = false;
+    this.drag = drag;
+    this.canvas().setPointerCapture(e.pointerId);
   },
 
   onMove(e) {
-    if (!this.drag) return;
+    const g = this.drag;
+    if (!g) return;
     const [x, y] = this.imagePoint(e);
-    const [x0, y0] = this.drag;
-    this.draft.roi = [Math.min(x, x0), Math.min(y, y0), Math.abs(x - x0), Math.abs(y - y0)];
+    if (!g.moved && Math.hypot(x - g.start[0], y - g.start[1]) < this.reach() / 3) return;
+    g.moved = true;
+    const d = this.draft;
+    const img = this.img();
+    const clampX = (v) => Math.max(0, Math.min(img.naturalWidth, v));
+    const clampY = (v) => Math.max(0, Math.min(img.naturalHeight, v));
+    if (g.kind === "corner") {
+      const [ax, ay] = g.anchor, bx = clampX(x), by = clampY(y);
+      d.roi = [Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay)];
+    } else if (g.kind === "inside") {
+      const [rx, ry, rw, rh] = g.roi;
+      d.roi = [Math.max(0, Math.min(img.naturalWidth - rw, rx + x - g.from[0])),
+        Math.max(0, Math.min(img.naturalHeight - rh, ry + y - g.from[1])), rw, rh];
+    } else if (g.kind === "point") {
+      g.p.x = clampX(x);
+      g.p.y = clampY(y);
+    }
     this.draw();
   },
 
   onUp() {
-    if (!this.drag) return;
+    const g = this.drag;
+    if (!g) return;
     this.drag = null;
-    const roi = this.draft.roi;
-    if (roi[2] < 20 || roi[3] < 20) this.draft.roi = null;
-    this.changed();
-    if (this.draft.roi) this.setTool(this.draft.pivot ? "point" : "pivot");
+    const d = this.draft;
+    const [x, y] = g.start;
+    if (g.kind === "corner" || g.kind === "inside") {
+      if (!g.moved && g.kind === "inside") {
+        d.pivot = [x, y];          // a click in the frame places the centre
+        d.pivotAuto = false;
+      } else if (g.moved) {
+        if (d.roi[2] < 20 || d.roi[3] < 20) d.roi = g.fresh ? null : g.roi || null;
+        const [fx, fy, fw, fh] = this.frame();
+        const inside = d.pivot && d.pivot[0] >= fx && d.pivot[0] <= fx + fw && d.pivot[1] >= fy && d.pivot[1] <= fy + fh;
+        if (!d.pivot || d.pivotAuto || !inside) this.autoPivot();
+      } else {
+        return;
+      }
+      this.changed();
+    } else if (g.kind === "point") {
+      if (g.moved) this.changed();
+      else this.openBubble(g.p, false);
+    } else if (g.kind === "add") {
+      const next = this.nextValue();
+      const p = { x, y, v: next === undefined ? NaN : next, extra: next === undefined };
+      d.pts.push(p);
+      d.history.push(p);
+      this.changed();
+      if (p.extra) this.openBubble(p, true);
+    }
   },
+
+  // ----- value bubble -----
+
+  openBubble(p, isNew) {
+    const c = this.canvas();
+    const box = $("#d-bubble");
+    this.bubble = { p, isNew };
+    box.style.left = `${100 * p.x / c.width}%`;
+    box.style.top = `${100 * p.y / c.height}%`;
+    // Towards the needle centre: the dial face is free, the scale is not.
+    const [px, py] = this.draft.pivot || [c.width / 2, c.height / 2];
+    box.classList.toggle("below", p.y < py);
+    box.classList.toggle("left", p.x > px);
+    const input = $("#d-bubble-value");
+    input.value = Number.isFinite(p.v) ? String(p.v).replace(".", lang === "fr" ? "," : ".") : "";
+    $("#d-bubble-del").hidden = isNew || !p.extra;
+    box.hidden = false;
+    input.focus();
+    input.select();
+  },
+
+  closeBubble(keep) {
+    const b = this.bubble;
+    $("#d-bubble").hidden = true;
+    this.bubble = null;
+    if (b && !keep && b.isNew) this.remove(b.p);
+  },
+
+  remove(p) {
+    const d = this.draft;
+    d.pts = d.pts.filter((q) => q !== p);
+    d.history = d.history.filter((q) => q !== p);
+    this.changed();
+  },
+
+  submitBubble() {
+    const b = this.bubble;
+    if (!b) return;
+    const v = Number($("#d-bubble-value").value.trim().replace(",", "."));
+    if ($("#d-bubble-value").value.trim() === "" || !Number.isFinite(v)) { $("#d-bubble-value").focus(); return; }
+    b.p.v = v;
+    this.closeBubble(true);
+    this.changed();
+  },
+
+  undo() {
+    const p = this.draft.history.pop();
+    if (p) this.remove(p);
+  },
+
+  setModel(model) {
+    const d = this.draft;
+    if (model === d.model) return;
+    if (d.pts.length && !confirm(t("d.model.confirm"))) { $("#d-model").value = d.model; return; }
+    d.model = model;
+    d.pts = [];
+    d.history = [];
+    this.changed();
+  },
+
+  // ----- test and save -----
 
   // Builds the configuration to test or save, or throws a readable error.
   payload() {
     const d = this.draft;
     if (!d.pivot) throw new Error(t("d.err.pivot"));
-    if (!d.start || !d.end) throw new Error(t("d.err.ends"));
-    const all = [d.start, ...d.mids, d.end];
-    if (all.some((p) => !Number.isFinite(p.v))) throw new Error(t("d.err.values"));
-    const rising = d.end.v > d.start.v;
-    const lo = Math.min(d.start.v, d.end.v), hi = Math.max(d.start.v, d.end.v);
-    if (d.start.v === d.end.v) throw new Error(t("d.err.same"));
-    if (d.mids.some((p) => p.v <= lo || p.v >= hi)) throw new Error(t("d.err.range", { lo, hi }));
-    const mids = [...d.mids].sort((a, b) => rising ? a.v - b.v : b.v - a.v);
-    const points = [d.start, ...mids, d.end].map((p) => [p.x, p.y, p.v]);
+    if (d.pts.length < 2) throw new Error(t("d.err.ends"));
+    if (d.pts.some((p) => !Number.isFinite(p.v))) throw new Error(t("d.err.values"));
+    const sorted = [...d.pts].sort((a, b) => a.v - b.v);
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].v === sorted[i - 1].v) throw new Error(t("d.err.same", { v: num(sorted[i].v) }));
+    }
+    const roi = d.roi ? d.roi.map(Math.round) : [0, 0, 0, 0];
     return {
       ...this.readShot(),
       ...pick(this.orient, ORIENT_KEYS),
-      roi: d.roi || [0, 0, 0, 0],
+      roi,
       pivot_mode: $("#d-mode").value,
       pivot_x: d.pivot[0],
       pivot_y: d.pivot[1],
-      points,
-      unit: $("#d-unit").value.trim() || "cm",
+      points: sorted.map((p) => [p.x, p.y, p.v]),
+      unit: this.unit(),
     };
   },
 
   async test() {
-    const body = this.payload();
+    let body;
+    try { body = this.payload(); } catch (e) { this.testError = e.message; this.renderCheck(); return; }
     const r = await post("/api/test", body);
     this.detail = r.detail || null;
-    const line = $("#d-result");
-    if (r.ok) {
-      line.textContent = t("d.result", { value: num(r.level), unit: r.unit,
-        angle: num(r.detail.needle_angle), contrast: num(r.detail.contrast, 0) });
-      line.className = "status ok";
-    } else {
-      line.textContent = deviceError(r.error);
-      line.className = "status err";
-    }
-    this.draw();
+    this.testLevel = r.level;
+    this.testError = r.ok ? "" : deviceError(r.error) || t("d.check.failed");
+    this.render();
   },
 
   async save() {
@@ -679,17 +953,28 @@ const dial = {
     const body = this.payload();
     await post("/api/config", body);
     cfg = await api("/api/config");
+    this.dirty = false;
     toast(t("d.saved"));
-    await this.test();
+    await refresh();
+    this.render();
   },
 };
 
-$("#d-photo-img").addEventListener("load", () => dial.draw());
+$("#d-photo-img").addEventListener("load", () => dial.photoLoaded());
 const overlay = $("#d-overlay");
 overlay.addEventListener("pointerdown", (e) => dial.onDown(e));
 overlay.addEventListener("pointermove", (e) => dial.onMove(e));
 overlay.addEventListener("pointerup", () => dial.onUp());
-$$("#d-tools button").forEach((b) => b.addEventListener("click", () => dial.setTool(b.dataset.tool)));
+overlay.addEventListener("pointercancel", () => { dial.drag = null; dial.draw(); });
+addEventListener("resize", () => { if (dial.draft) dial.layout(); });
+$$("#d-steps button").forEach((b) => b.addEventListener("click", () => dial.show(b.dataset.step)));
+$$("#tab-dial [data-go]").forEach((b) => b.addEventListener("click", () => dial.show(b.dataset.go)));
+$("#d-bubble").addEventListener("submit", (e) => { e.preventDefault(); dial.submitBubble(); });
+$("#d-bubble").addEventListener("keydown", (e) => { if (e.key === "Escape") { dial.closeBubble(false); dial.render(); } });
+$("#d-bubble-del").addEventListener("click", () => { const b = dial.bubble; dial.closeBubble(true); if (b) dial.remove(b.p); });
+$("#d-undo").addEventListener("click", () => dial.undo());
+$("#d-model").addEventListener("change", (e) => dial.setModel(e.target.value));
+$("#d-unit").addEventListener("input", () => dial.changed());
 $("#d-photo").addEventListener("click", () => dial.takePhoto());
 $("#d-shot").addEventListener("change", () => dial.takePhoto());
 $("#d-shot").addEventListener("input", showLed);
@@ -705,16 +990,6 @@ function showLed() {
 $("#d-test").addEventListener("click", (e) => busy(e.target, () => dial.test()));
 $("#d-save").addEventListener("click", (e) => busy(e.target, () => dial.save()));
 $("#d-mode").addEventListener("change", () => dial.changed());
-$("#d-zoom").addEventListener("change", (e) => {
-  const z = e.target.value;
-  const viewer = $("#d-viewer");
-  const img = $("#d-photo-img");
-  viewer.classList.toggle("zoomed", z !== "fit");
-  const w = z === "fit" ? "" : `${img.naturalWidth * Number(z)}px`;
-  img.style.width = w;
-  $("#d-overlay").style.width = w;
-  $("#d-overlay").style.height = z === "fit" ? "" : `${img.naturalHeight * Number(z)}px`;
-});
 
 // ---------- forms (tank, camera, network) ----------
 
@@ -1049,8 +1324,7 @@ $("#s-restart").addEventListener("click", (e) => busy(e.target, async () => {
 
 function rerender() {
   applyI18n();
-  if (dial.hintKey) $("#d-hint").textContent = t(dial.hintKey);
-  if (dial.draft) dial.renderTable();
+  dial.render();
   showLed();
   if (cfg) renderForms();
   loadLog();
