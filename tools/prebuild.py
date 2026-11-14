@@ -3,7 +3,7 @@
 Writes src/generated/web_assets.h and src/generated/version.h. The version is
 GAUGECAM_VERSION when set (CI), else `git describe`, else "dev". Updates come
 from the releases of GITHUB_REPOSITORY (set by GitHub Actions), by default
-tdelix/gauge-cam.
+tdebuilt/gauge-cam.
 """
 import gzip
 import os
@@ -33,8 +33,8 @@ def version():
 
 
 def repository():
-    repo = os.environ.get("GITHUB_REPOSITORY", "tdelix/gauge-cam")
-    return repo if all(c.isalnum() or c in "-_./" for c in repo) else "tdelix/gauge-cam"
+    repo = os.environ.get("GITHUB_REPOSITORY", "tdebuilt/gauge-cam")
+    return repo if all(c.isalnum() or c in "-_./" for c in repo) else "tdebuilt/gauge-cam"
 
 
 def write_if_changed(path, text):

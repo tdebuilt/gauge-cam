@@ -212,7 +212,7 @@ def update_json():
     available = bool(UPDATE["latest"]) and UPDATE["latest"] != UPDATE["installed"]
     out = {"installed": UPDATE["installed"], "latest": UPDATE["latest"], "available": available,
            "checked_s": int(time.time() - UPDATE["checked"]) if UPDATE["checked"] else -1,
-           "busy": UPDATE["busy"], "release_url": "https://github.com/tdelix/gauge-cam/releases/latest",
+           "busy": UPDATE["busy"], "release_url": "https://github.com/tdebuilt/gauge-cam/releases/latest",
            "pending_verify": False}
     if UPDATE["progress"] is not None:
         out["progress"] = UPDATE["progress"]

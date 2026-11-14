@@ -89,7 +89,7 @@ const I18N = {
     "n.found": "{n} réseaux trouvés.", "n.open": "ouvert",
 
     "s.update": "Mise à jour",
-    "s.update.help": "À la main : fichier <code>gauge-cam.bin</code> d'une version publiée, ou réinstallation complète par <a href=\"https://tdelix.github.io/gauge-cam/\" target=\"_blank\" rel=\"noopener\">la page de flash</a>.",
+    "s.update.help": "À la main : fichier <code>gauge-cam.bin</code> d'une version publiée, ou réinstallation complète par <a href=\"https://tdebuilt.github.io/gauge-cam/\" target=\"_blank\" rel=\"noopener\">la page de flash</a>.",
     "s.updateButton": "Mettre à jour", "s.backup": "Sauvegarde",
     "s.backup.help": "Les mots de passe ne sont pas exportés.",
     "s.export": "Exporter la configuration", "s.import": "Importer", "s.restart": "Redémarrer",
@@ -265,7 +265,7 @@ const I18N = {
     "n.found": "{n} networks found.", "n.open": "open",
 
     "s.update": "Update",
-    "s.update.help": "By hand: the <code>gauge-cam.bin</code> file of a release, or a full reinstall from <a href=\"https://tdelix.github.io/gauge-cam/\" target=\"_blank\" rel=\"noopener\">the flasher page</a>.",
+    "s.update.help": "By hand: the <code>gauge-cam.bin</code> file of a release, or a full reinstall from <a href=\"https://tdebuilt.github.io/gauge-cam/\" target=\"_blank\" rel=\"noopener\">the flasher page</a>.",
     "s.updateButton": "Update", "s.backup": "Backup",
     "s.backup.help": "Passwords are not exported.",
     "s.export": "Export the configuration", "s.import": "Import", "s.restart": "Restart",

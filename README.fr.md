@@ -68,7 +68,7 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
 
 ## Installation
 
-1. Ouvre la [page de flash](https://tdelix.github.io/gauge-cam/), branche l'ESP32-CAM-MB et
+1. Ouvre la [page de flash](https://tdebuilt.github.io/gauge-cam/), branche l'ESP32-CAM-MB et
    clique sur *Installer*.
 2. Règle le Wi-Fi quand la page le propose, puis ouvre l'appareil.
 3. Onglet **Cadran** : *Nouvelle photo*, règle la lumière et la rotation si besoin, puis sur
@@ -81,7 +81,7 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
 
 Mise à jour ensuite : entité *Firmware* dans Home Assistant, onglet Système (*Rechercher une mise
 à jour*), ou à la main avec le fichier `gauge-cam.bin` de la
-[dernière version](https://github.com/tdelix/gauge-cam/releases/latest).
+[dernière version](https://github.com/tdebuilt/gauge-cam/releases/latest).
 
 ## MQTT
 

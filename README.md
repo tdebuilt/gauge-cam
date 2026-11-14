@@ -63,7 +63,7 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 
 ## Installation
 
-1. Open the [flasher page](https://tdelix.github.io/gauge-cam/), plug in the ESP32-CAM-MB and
+1. Open the [flasher page](https://tdebuilt.github.io/gauge-cam/), plug in the ESP32-CAM-MB and
    click *Install*.
 2. Set up Wi-Fi when offered, then open the device.
 3. **Dial** tab: *New photo*, adjust the light and rotation if needed, then on the image: the dial outline, the needle centre, the start
@@ -73,7 +73,7 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 
 Later updates: the *Firmware* entity in Home Assistant, the System tab (*Check for an update*), or
 by hand with the `gauge-cam.bin` file of the
-[latest release](https://github.com/tdelix/gauge-cam/releases/latest).
+[latest release](https://github.com/tdebuilt/gauge-cam/releases/latest).
 
 ## MQTT
 
