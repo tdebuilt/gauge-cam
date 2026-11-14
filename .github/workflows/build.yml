@@ -45,7 +45,7 @@ jobs:
       - name: Flasher site
         run: |
           mkdir -p site
-          cp flasher/index.html dist/gauge-cam-factory.bin dist/gauge-cam.bin site/
+          cp flasher/index.html dist/gauge-cam-factory.bin dist/gauge-cam.bin web/*.woff2 web/fonts-license.txt site/
           python3 - <<'PY'
           import json, re
           version = re.search(r'"(.*)"', open("src/generated/version.h").read()).group(1)

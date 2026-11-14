@@ -112,6 +112,19 @@ Chacune est publiable seule : tag `vX.Y.0`, release par la CI, mise à jour depu
 - Tests : chargement Chromium de `tdebuilt.github.io/gauge-cam/`, élément `esp-web-install-button`
   défini, zéro erreur ; flash réel par USB puis « Visit device ».
 
+- Fait le 2026-11-14, flash réel à faire. Écarts au plan :
+  - quatre étapes au lieu de trois (Brancher, Installer, Wi-Fi, Mise en service) et deux encadrés
+    « La connexion échoue » (IO0, câble, pilote CH340) et « Plus tard » (retrouver l'appareil, changer
+    de Wi-Fi, mettre à jour) ;
+  - thème clair par `prefers-color-scheme`, comme l'appareil ; jauge animée, immobile si le système
+    demande moins d'animations ;
+  - les dialogues d'esp-web-tools prennent l'ambre et le fond de la page (variables posées sur leur
+    élément hôte, qui l'emportent sur leurs valeurs par défaut) ; leur texte reste en anglais ;
+  - esp-web-tools figé en 10.5.2 au lieu de `@10` ;
+  - testé en Chromium sur une copie locale du site : bureau et téléphone, sombre et clair, langue
+    tirée du navigateur puis gardée, polices servies, dialogue « No port selected » au clic, message
+    pour un navigateur sans USB, zéro erreur console.
+
 Cette étape ne touche pas le firmware : elle peut passer avant les autres.
 
 ## Hors champ

@@ -3,101 +3,243 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gauge Cam – flasher</title>
-<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<meta name="color-scheme" content="dark light">
+<title>Gauge Cam</title>
+<meta name="description" content="Reads a needle gauge (oil tank level) with an ESP32-CAM and publishes it to Home Assistant over MQTT.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23f5a524' stroke-width='2.4'/%3E%3Cpath d='M16 16l6-6' stroke='%23f5a524' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<script type="module" src="https://unpkg.com/esp-web-tools@10.5.2/dist/web/install-button.js?module"></script>
 <style>
-  :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1c2330; background: #f4f5f7; }
-  main { max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.5; }
-  .box { background: #fff; border: 1px solid #d9dde5; border-radius: 12px; padding: 20px 24px; margin: 16px 0; }
-  .lang { float: right; }
-  .install { font: inherit; font-weight: 600; padding: 10px 22px; border: 0; border-radius: 999px; background: #1f6feb; color: #fff; cursor: pointer; }
-  code { background: #eef0f4; padding: 1px 5px; border-radius: 4px; }
-  .muted { color: #677085; }
-  [data-lang] { display: none; }
-  html[lang=fr] [data-lang=fr], html[lang=en] [data-lang=en] { display: revert; }
+@font-face { font-family: "Gauge Mono"; src: url(gaugemono.woff2) format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: Manrope; src: url(manrope.woff2) format("woff2"); font-weight: 800; font-display: swap; }
+:root {
+  --bg: #0e1114; --panel: #161b20; --ink: #e9edf1; --mut: #8b96a3; --soft: #a3adb8; --line: #2a323b; --panel2: #1d232a; --amb-soft: #2a2418;
+  --amb: #f5a524; --on-amb: #1a1205; --teal: #3cc6a5; --red: #e5484d; --track: #262e37; --tick: #56616d;
+  --hero: radial-gradient(closest-side at 75% 50%, #1b2229, transparent);
+  --glow: drop-shadow(0 0 10px #f5a52488); --btn-glow: 0 0 30px #f5a52444;
+  --mono: "Gauge Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f4ef; --panel: #fff; --ink: #1d2329; --mut: #5f6873; --soft: #4a535d; --line: #e2ded6;
+    --amb: #b86e00; --on-amb: #fff; --teal: #13896b; --red: #d23c41; --track: #e8e4dc; --tick: #b9b3a8;
+    --hero: radial-gradient(closest-side at 75% 50%, #fff, transparent); --glow: none; --btn-glow: none;
+    --panel2: #f1eee8; --amb-soft: #f6ead6;
+    color-scheme: light;
+  }
+}
+/* esp-web-tools dialogs set their colours on :host; a rule on the host element wins */
+ewt-install-dialog, ewt-no-port-picked-dialog {
+  --roboto-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --text-color: var(--soft); --danger-color: var(--red);
+  --md-sys-color-primary: var(--amb); --md-sys-color-on-primary: var(--on-amb);
+  --md-sys-color-surface: var(--panel); --md-sys-color-surface-container: var(--panel);
+  --md-sys-color-surface-container-high: var(--panel); --md-sys-color-surface-container-highest: var(--panel2);
+  --md-sys-color-on-surface: var(--ink); --md-sys-color-on-surface-variant: var(--soft);
+  --md-sys-color-secondary-container: var(--amb-soft); --md-sys-color-on-secondary-container: var(--ink);
+  --md-sys-color-error: var(--red);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-size: 16px; line-height: 1.5; }
+a { color: inherit; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+code { font-family: var(--mono); font-size: .9em; background: var(--panel); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px; }
+:focus-visible { outline: 2px solid var(--amb); outline-offset: 3px; }
+
+/* header */
+header { display: flex; align-items: center; gap: 10px; padding: 20px 0; }
+.logo { width: 28px; height: 28px; color: var(--amb); flex: none; }
+.brand { font-family: Manrope, system-ui, sans-serif; font-weight: 800; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; }
+nav { margin-left: auto; display: flex; align-items: center; gap: 20px; font-size: 14px; color: var(--mut); }
+nav a { text-decoration: none; } nav a:hover { color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 2px; }
+.seg button { font: inherit; font-size: 13px; border: 0; background: none; color: var(--mut); padding: 3px 9px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* hero */
+.hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; align-items: center; padding: 28px 0 44px; background: var(--hero); }
+.kick { color: var(--amb); font-family: var(--mono); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+h1 { font-family: Manrope, system-ui, sans-serif; font-weight: 800; font-size: 46px; line-height: 1.08; letter-spacing: -.02em; margin: 12px 0 16px; }
+.lead { color: var(--soft); font-size: 18px; margin: 0 0 28px; max-width: 34em; }
+.act { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; }
+.install { font: inherit; font-weight: 700; font-size: 17px; padding: 15px 28px; border-radius: 12px; border: 0; background: var(--amb); color: var(--on-amb); box-shadow: var(--btn-glow); cursor: pointer; }
+esp-web-install-button { display: contents; }
+.install:hover { filter: brightness(1.08); }
+.ver { color: var(--mut); font-family: var(--mono); font-size: 14px; }
+.ver a { text-decoration: none; border-bottom: 1px solid var(--line); }
+.need { color: var(--mut); font-size: 14px; margin: 14px 0 0; }
+.hero:has([install-unsupported]) .need { display: none; }
+.warn { display: block; border-left: 3px solid var(--amb); padding: 8px 0 8px 12px; color: var(--ink); max-width: 30em; }
+.gauge { width: 100%; max-width: 360px; height: auto; display: block; margin: 0 auto; }
+.g-track { stroke: var(--track); } .g-red { stroke: var(--red); } .g-ticks line { stroke: var(--tick); stroke-width: 2; }
+.g-val { stroke: var(--amb); filter: var(--glow); stroke-dasharray: 1 1; animation: fill 2.4s ease-out both; }
+.g-needle { stroke: var(--ink); stroke-width: 5; stroke-linecap: round; transform-origin: 170px 170px; animation: sweep 2.4s ease-out both; }
+.g-hub { fill: var(--ink); }
+@keyframes sweep { from { transform: rotate(-169deg); } }
+@keyframes fill { from { stroke-dashoffset: .7; } }
+@media (prefers-reduced-motion: reduce) { .g-val, .g-needle { animation: none; } }
+
+/* features, steps, help */
+.strip { display: flex; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.strip div { flex: 1; padding: 16px 18px; font-size: 15px; color: var(--soft); }
+.strip div + div { border-left: 1px solid var(--line); }
+.strip b, h2 { display: block; color: var(--teal); font-family: var(--mono); font-weight: 500; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 4px; }
+h2 { color: var(--mut); margin: 44px 0 16px; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; list-style: none; padding: 0; margin: 0; }
+.steps li { border-top: 2px solid var(--line); padding-top: 14px; }
+.steps li:first-child { border-color: var(--amb); }
+.steps em { font-style: normal; font-family: var(--mono); color: var(--amb); font-size: 13px; }
+.steps b { display: block; font-size: 17px; margin: 4px 0; }
+.steps span { color: var(--mut); font-size: 15px; }
+.help { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+.card h3 { margin: 0 0 8px; font-size: 16px; }
+.card p, .card li { color: var(--soft); font-size: 15px; margin: 0 0 8px; }
+.card ol { margin: 0 0 8px; padding-left: 20px; }
+.card p:last-child { margin: 0; }
+footer { color: var(--mut); font-size: 13px; padding: 40px 0 32px; display: flex; gap: 8px 20px; flex-wrap: wrap; }
+
+@media (max-width: 860px) {
+  .wrap { padding: 0 18px; }
+  nav .doc { display: none; }
+  .hero { grid-template-columns: 1fr; padding-top: 8px; gap: 8px; }
+  .hero .gfig { order: -1; } .gauge { max-width: 230px; margin-bottom: -30px; }
+  h1 { font-size: 34px; } .lead { font-size: 16px; }
+  .install { width: 100%; }
+  .strip { flex-direction: column; } .strip div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .steps { grid-template-columns: 1fr 1fr; } .help { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
-<main>
-  <select class="lang" id="lang"><option value="fr">Français</option><option value="en">English</option></select>
-  <h1>Gauge Cam</h1>
-  <p data-lang="fr">Lecture d'une jauge à aiguille (niveau de cuve à mazout) par un ESP32-CAM, publiée dans Home Assistant par MQTT.</p>
-  <p data-lang="en">Reads a needle gauge (oil tank level) with an ESP32-CAM and publishes it to Home Assistant over MQTT.</p>
+<div class="wrap">
+  <header>
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M8.5 21A9 9 0 0 1 16 7" fill="none" stroke="#e5484d" stroke-width="2.4" stroke-linecap="round"/><path d="M16 16l6-6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="16" r="2.6" fill="currentColor"/></svg>
+    <span class="brand">Gauge Cam</span>
+    <nav>
+      <a class="doc" id="doc" href="https://github.com/tdebuilt/gauge-cam#readme" data-t="nav.doc"></a>
+      <a href="https://github.com/tdebuilt/gauge-cam">GitHub</a>
+      <span class="seg" role="group" aria-label="Language"><button type="button" data-lang="fr" lang="fr">FR</button><button type="button" data-lang="en" lang="en">EN</button></span>
+    </nav>
+  </header>
 
-  <div class="box">
-    <esp-web-install-button manifest="manifest.json">
-      <button slot="activate" id="install" class="install"></button>
-      <span slot="unsupported" data-lang="fr">Navigateur non pris en charge : utilise Chrome ou Edge sur ordinateur.</span>
-      <span slot="unsupported" data-lang="en">Browser not supported: use Chrome or Edge on a computer.</span>
-      <span slot="not-allowed" data-lang="fr">Cette page doit être ouverte en HTTPS.</span>
-      <span slot="not-allowed" data-lang="en">This page must be opened over HTTPS.</span>
-    </esp-web-install-button>
-    <p class="muted">Version <span id="version">…</span></p>
-  </div>
+  <main>
+    <section class="hero">
+      <div>
+        <div class="kick">ESP32-CAM · MQTT · Home Assistant</div>
+        <h1 data-t="h1"></h1>
+        <p class="lead" data-t="lead"></p>
+        <div class="act">
+          <esp-web-install-button manifest="manifest.json">
+            <button slot="activate" type="button" class="install" id="install" data-t="install"></button>
+            <span slot="unsupported" class="warn" data-t="unsupported"></span>
+            <span slot="not-allowed" class="warn" data-t="notAllowed"></span>
+          </esp-web-install-button>
+          <span class="ver" id="ver"></span>
+        </div>
+        <p class="need" data-t="need"></p>
+      </div>
+      <div class="gfig"><svg class="gauge" viewBox="0 0 340 340" aria-hidden="true"><path d="M40.1 245.0A150.0 150.0 0 1 1 299.9 245.0" class="g-track" stroke-width="20" fill="none" stroke-linecap="round"/><path d="M40.1 245.0A150.0 150.0 0 0 1 283.5 72.0" class="g-val" pathLength="1" stroke-width="20" fill="none" stroke-linecap="round"/><path d="M40.1 245.0A150.0 150.0 0 0 1 20.0 173.1" class="g-red" stroke-width="20" fill="none" stroke-linecap="round"/><g class="g-ticks"><line x1="55.7" y1="236.0" x2="67.8" y2="229.0"/><line x1="38.7" y1="183.8" x2="46.7" y2="183.0"/><line x1="44.5" y1="129.2" x2="52.1" y2="131.7"/><line x1="71.9" y1="81.7" x2="77.9" y2="87.0"/><line x1="116.3" y1="49.4" x2="119.6" y2="56.7"/><line x1="170.0" y1="38.0" x2="170.0" y2="52.0"/><line x1="223.7" y1="49.4" x2="220.4" y2="56.7"/><line x1="268.1" y1="81.7" x2="262.1" y2="87.0"/><line x1="295.5" y1="129.2" x2="287.9" y2="131.7"/><line x1="301.3" y1="183.8" x2="293.3" y2="183.0"/><line x1="284.3" y1="236.0" x2="272.2" y2="229.0"/></g><line x1="170.0" y1="170.0" x2="250.2" y2="100.7" class="g-needle"/><circle cx="170.0" cy="170.0" r="9" class="g-hub"/></svg></div>
+    </section>
 
-  <div class="box" data-lang="fr">
-    <h2>Installation</h2>
-    <ol>
-      <li>Branche l'ESP32-CAM sur sa carte USB <b>ESP32-CAM-MB</b>, puis sur l'ordinateur.</li>
-      <li>Clique sur le bouton ci-dessus, choisis le port série, puis <b>Installer</b>.
-        Si la connexion échoue, maintiens le bouton <b>IO0</b> de la carte MB en appuyant sur
-        <b>RST</b>, puis relâche-le.</li>
-      <li>Après l'installation, la page propose de <b>régler le Wi-Fi</b> : choisis le réseau
-        (celui des objets connectés) et saisis son mot de passe.</li>
-      <li>Ouvre ensuite l'appareil (lien proposé, ou <code>http://gauge-cam-xxxxxx.local/</code>) et
-        règle le cadran, la cuve et MQTT.</li>
+    <div class="strip">
+      <div><b data-t="f1.t"></b><span data-t="f1"></span></div>
+      <div><b data-t="f2.t"></b><span data-t="f2"></span></div>
+      <div><b data-t="f3.t"></b><span data-t="f3"></span></div>
+    </div>
+
+    <h2 data-t="steps"></h2>
+    <ol class="steps">
+      <li><em>01</em><b data-t="s1.t"></b><span data-t="s1"></span></li>
+      <li><em>02</em><b data-t="s2.t"></b><span data-t="s2"></span></li>
+      <li><em>03</em><b data-t="s3.t"></b><span data-t="s3"></span></li>
+      <li><em>04</em><b data-t="s4.t"></b><span data-t="s4"></span></li>
     </ol>
-    <p class="muted">Tant que le Wi-Fi n'a jamais fonctionné, l'appareil ouvre aussi un point d'accès
-      <code>gauge-cam-xxxxxx</code> : connecte-toi dessus, la page de réglage s'ouvre sur
-      <code>http://192.168.4.1/</code>.</p>
-    <p class="muted">Changer de Wi-Fi plus tard : rebranche l'appareil en USB, clique sur le bouton
-      ci-dessus, puis l'option de <b>changement de Wi-Fi</b>. Ou donne un mot de passe au point d'accès de secours
-      (Réglages → Réseau et MQTT) : il s'ouvrira après 30 s sans Wi-Fi.</p>
-    <p class="muted">Mise à jour d'un appareil déjà installé : entité <b>Firmware</b> dans Home
-      Assistant, ou Réglages → Système de son interface ; à la main, avec le fichier
-      <code>gauge-cam.bin</code> de la <a id="release-fr" href="#">dernière version</a>.</p>
-  </div>
 
-  <div class="box" data-lang="en">
-    <h2>Installation</h2>
-    <ol>
-      <li>Plug the ESP32-CAM into its <b>ESP32-CAM-MB</b> USB board, then into the computer.</li>
-      <li>Click the button above, pick the serial port, then <b>Install</b>. If it cannot connect,
-        hold the <b>IO0</b> button of the MB board while pressing <b>RST</b>, then release it.</li>
-      <li>After the installation the page offers to <b>set up Wi-Fi</b>: pick the network and type
-        its password.</li>
-      <li>Then open the device (offered link, or <code>http://gauge-cam-xxxxxx.local/</code>) and set
-        up the dial, the tank and MQTT.</li>
-    </ol>
-    <p class="muted">As long as Wi-Fi has never worked, the device also opens a
-      <code>gauge-cam-xxxxxx</code> access point: join it and the set-up page opens on
-      <code>http://192.168.4.1/</code>.</p>
-    <p class="muted">To change Wi-Fi later: plug the device in over USB, click the button above, then
-      <b>Change Wi-Fi</b>. Or give the fallback access point a password (Settings → Network and MQTT): it will open
-      after 30 s without Wi-Fi.</p>
-    <p class="muted">To update an installed device: the <b>Firmware</b> entity in Home Assistant, or
-      Settings → System in its interface; by hand, with the <code>gauge-cam.bin</code> file of the
-      <a id="release-en" href="#">latest release</a>.</p>
-  </div>
-</main>
+    <h2 data-t="help"></h2>
+    <div class="help">
+      <div class="card"><h3 data-t="io0.t"></h3><div data-t="io0"></div></div>
+      <div class="card"><h3 data-t="later.t"></h3><div data-t="later"></div></div>
+    </div>
+  </main>
+
+  <footer><span>Gauge Cam <span class="ver" id="ver-foot"></span></span><a id="release" href="https://github.com/tdebuilt/gauge-cam/releases/latest" data-t="release"></a><span data-t="license"></span></footer>
+</div>
 <script>
-  const select = document.getElementById("lang");
-  const saved = localStorage.getItem("lang");
-  const lang = ["fr", "en"].includes(saved) ? saved : (navigator.language || "en").startsWith("fr") ? "fr" : "en";
-  const label = { fr: "Installer sur l'ESP32-CAM", en: "Install on the ESP32-CAM" };
-  const apply = (l) => {
-    document.documentElement.lang = select.value = l;
-    document.getElementById("install").textContent = label[l];
-  };
+const T = {
+  fr: {
+    "nav.doc": "Documentation",
+    h1: "Votre jauge de mazout, lue toute seule.",
+    lead: "Un ESP32-CAM d'une dizaine d'euros photographie la jauge de la cuve, lit l'aiguille et envoie le niveau et les litres restants à Home Assistant.",
+    install: "Installer sur l'ESP32-CAM",
+    unsupported: "Ce navigateur ne sait pas parler au port USB : ouvre cette page dans <b>Chrome</b> ou <b>Edge</b>, sur ordinateur.",
+    notAllowed: "Cette page doit être ouverte en HTTPS.",
+    need: "Chrome ou Edge sur ordinateur, un câble USB qui transporte les données.",
+    "f1.t": "Sans carte SD", f1: "Tout tient dans la mémoire de l'ESP32.",
+    "f2.t": "Mises à jour", f2: "Depuis Home Assistant, avec retour arrière si la nouvelle version ne démarre pas.",
+    "f3.t": "Local", f3: "Les mesures restent chez vous, par MQTT. Aucun compte, aucun nuage.",
+    steps: "Installation",
+    "s1.t": "Brancher", s1: "L'ESP32-CAM sur sa carte ESP32-CAM-MB, puis le câble USB vers l'ordinateur.",
+    "s2.t": "Installer", s2: "Le bouton ci-dessus, le port série, puis Installer. L'ancien contenu est effacé.",
+    "s3.t": "Wi‑Fi", s3: "La page propose de régler le Wi‑Fi : choisis le réseau, saisis son mot de passe.",
+    "s4.t": "Mise en service", s4: "« Visit device » ouvre l'appareil : photo, cadran, cuve et Home Assistant, chaque étape remise à plus tard si besoin.",
+    help: "En cas de souci",
+    "io0.t": "La connexion échoue",
+    io0: "<ol><li>Maintiens le bouton <b>IO0</b> de la carte MB enfoncé.</li><li>Appuie brièvement sur <b>RST</b>.</li><li>Relâche <b>IO0</b>, puis relance l'installation.</li></ol><p>Aucun port proposé : essaie un autre câble, beaucoup ne font que charger. Sous Windows, la carte MB demande parfois le pilote <b>CH340</b>.</p>",
+    "later.t": "Plus tard",
+    later: "<p><b>Retrouver l'appareil</b> : <code>http://gauge-cam-xxxxxx.local/</code>, ou sa fiche dans Home Assistant. Tant que le Wi‑Fi n'a jamais marché, il ouvre le point d'accès <code>gauge-cam-xxxxxx</code> ; sa page est sur <code>http://192.168.4.1/</code>.</p><p><b>Changer de Wi‑Fi</b> : rebranche-le en USB, clique sur le bouton ci-dessus, puis sur le changement de Wi‑Fi. Ou donne un mot de passe au point d'accès de secours (Réglages → Réseau et MQTT) : il s'ouvrira après 30 s sans Wi‑Fi.</p><p><b>Mettre à jour</b> : l'entité <b>Firmware</b> dans Home Assistant, ou Réglages → Système sur l'appareil.</p>",
+    release: "Notes de version",
+    license: "Licence MIT",
+    version: "Version",
+  },
+  en: {
+    "nav.doc": "Documentation",
+    h1: "Your oil gauge, read on its own.",
+    lead: "A ten-euro ESP32-CAM takes a picture of the tank gauge, reads the needle and sends the level and the litres left to Home Assistant.",
+    install: "Install on the ESP32-CAM",
+    unsupported: "This browser cannot talk to the USB port: open this page in <b>Chrome</b> or <b>Edge</b>, on a computer.",
+    notAllowed: "This page must be opened over HTTPS.",
+    need: "Chrome or Edge on a computer, a USB cable that carries data.",
+    "f1.t": "No SD card", f1: "Everything fits in the ESP32's memory.",
+    "f2.t": "Updates", f2: "From Home Assistant, rolled back if the new version does not start.",
+    "f3.t": "Local", f3: "Readings stay at home, over MQTT. No account, no cloud.",
+    steps: "Installation",
+    "s1.t": "Plug in", s1: "The ESP32-CAM on its ESP32-CAM-MB board, then the USB cable to the computer.",
+    "s2.t": "Install", s2: "The button above, the serial port, then Install. The old content is erased.",
+    "s3.t": "Wi‑Fi", s3: "The page offers to set up Wi‑Fi: pick the network, type its password.",
+    "s4.t": "Set-up", s4: "“Visit device” opens the device: photo, dial, tank and Home Assistant, each step can wait.",
+    help: "If something goes wrong",
+    "io0.t": "It cannot connect",
+    io0: "<ol><li>Hold the <b>IO0</b> button of the MB board down.</li><li>Briefly press <b>RST</b>.</li><li>Release <b>IO0</b>, then start the installation again.</li></ol><p>No port offered: try another cable, many only charge. On Windows the MB board sometimes needs the <b>CH340</b> driver.</p>",
+    "later.t": "Later on",
+    later: "<p><b>Find the device</b>: <code>http://gauge-cam-xxxxxx.local/</code>, or its page in Home Assistant. As long as Wi‑Fi has never worked, it opens the <code>gauge-cam-xxxxxx</code> access point; its page is on <code>http://192.168.4.1/</code>.</p><p><b>Change Wi‑Fi</b>: plug it in over USB, click the button above, then Change Wi‑Fi. Or give the fallback access point a password (Settings → Network and MQTT): it will open after 30 s without Wi‑Fi.</p><p><b>Update</b>: the <b>Firmware</b> entity in Home Assistant, or Settings → System on the device.</p>",
+    release: "Release notes",
+    license: "MIT licence",
+    version: "Version",
+  },
+};
+let manifest = null;
+const apply = (lang) => {
+  document.documentElement.lang = lang;
+  for (const el of document.querySelectorAll("[data-t]")) el.innerHTML = T[lang][el.dataset.t];
+  for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
+  document.getElementById("doc").href = "https://github.com/tdebuilt/gauge-cam/blob/main/" + (lang === "fr" ? "README.fr.md" : "README.md");
+  if (manifest) document.getElementById("ver").textContent = T[lang].version + " " + manifest.version;
+};
+const saved = localStorage.getItem("lang");
+let lang = ["fr", "en"].includes(saved) ? saved : (navigator.language || "en").startsWith("fr") ? "fr" : "en";
+apply(lang);
+for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
+  lang = b.dataset.lang;
+  localStorage.setItem("lang", lang);
   apply(lang);
-  select.addEventListener("change", () => {
-    apply(select.value);
-    localStorage.setItem("lang", select.value);
-  });
-  fetch("manifest.json").then((r) => r.json()).then((m) => {
-    document.getElementById("version").textContent = m.version;
-    for (const id of ["release-fr", "release-en"]) document.getElementById(id).href = m.release_url || "#";
-  });
+});
+fetch("manifest.json").then((r) => r.json()).then((m) => {
+  manifest = m;
+  document.getElementById("ver-foot").textContent = m.version;
+  if (m.release_url) document.getElementById("release").href = m.release_url;
+  apply(lang);
+}).catch(() => {});
 </script>
 </body>
 </html>

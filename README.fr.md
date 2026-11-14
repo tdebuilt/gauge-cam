@@ -126,9 +126,10 @@ pio run && tools/make_factory.sh    # firmware et images dans dist/
 
 `lib/gauge` est l'algorithme, en C++ portable ; `src/` le firmware Arduino ; `web/` l'interface,
 compressée dans le firmware à la compilation (`tools/prebuild.py`, 150 Ko au plus), avec deux polices
-réduites par `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`). Refonte en cours :
-`docs/plan-refonte-ux.md`. GitHub Actions teste et
-compile chaque push, publie la page de flash depuis `main` et une release pour chaque tag `v*`.
+réduites par `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`) ; `flasher/index.html` la
+page de flash, qui reprend les mêmes polices. Choix de l'interface : `docs/plan-refonte-ux.md`.
+GitHub Actions teste et compile chaque push, publie la page de flash depuis `main` et une release
+pour chaque tag `v*`.
 
 ## Licence
 
