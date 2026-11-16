@@ -64,7 +64,9 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 ## Installation
 
 1. Open the [flasher page](https://tdebuilt.github.io/gauge-cam/), plug in the ESP32-CAM-MB and
-   click *Install*.
+   click *Install*. If it cannot connect, put the board in download mode: hold **IO0** on the MB
+   board, briefly press **RST** on the ESP32-CAM itself (the MB board's RST does not always work),
+   release **IO0**, then click *Install* again.
 2. Set up Wi-Fi when offered, then *Visit device*: the device opens its **set-up**, six steps that
    can each wait (*Later*):
    - *Photo* (light and rotation);
