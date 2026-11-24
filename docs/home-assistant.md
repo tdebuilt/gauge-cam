@@ -19,7 +19,8 @@ Entity names follow the device language (Settings → Network and MQTT): French 
 | Read now | button: takes a reading at once |
 | Firmware | update entity: version, release notes, *Install* |
 
-Diagnostics: reading status, needle angle, needle contrast, Wi-Fi signal, last start and its cause.
+Diagnostics: reading status, needle angle, needle contrast, Wi-Fi signal, last start and its cause, last settings change (the time
+the dial, camera or tank settings last changed).
 Free memory is there too, disabled by default.
 
 The device announces its entities again whenever Home Assistant restarts.
@@ -31,7 +32,7 @@ The device announces its entities again whenever Home Assistant restarts.
 | Topic | Content |
 |---|---|
 | `gauge-cam/<id>/state` | JSON after each good reading: `level`, `volume_l`, `percent`, `angle`, `contrast`, `time` (retained) |
-| `gauge-cam/<id>/diag` | JSON: `rssi`, `boot`, `reset_reason`, `heap_free`, `version` (retained) |
+| `gauge-cam/<id>/diag` | JSON: `rssi`, `boot`, `reset_reason`, `heap_free`, `version`, `config_changed` (retained) |
 | `gauge-cam/<id>/status` | `ok`, or the error of the last reading (retained) |
 | `gauge-cam/<id>/image` | last JPEG photo (retained) |
 | `gauge-cam/<id>/update` | state of the firmware entity (retained) |

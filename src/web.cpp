@@ -74,6 +74,7 @@ void handleStatus() {
   doc["heap_min"] = ESP.getMinFreeHeap();
   doc["psram_free"] = ESP.getFreePsram();
   doc["time"] = epochNow();
+  if (configChangedAt()) doc["config_changed"] = configChangedAt();
   doc["reset_reason"] = resetReasonId();
   if (previousRestartNote().length()) doc["restart_note"] = previousRestartNote();
   otaToJson(doc["update"].to<JsonObject>());
@@ -103,20 +104,102 @@ void handleGetConfig() {
   sendJson(200, doc);
 }
 
-void handlePostConfig() {
-  if (!authorized()) return;
-  JsonDocument body;
-  if (!parseBody(body)) return;
-  const String ssid = config.wifi_ssid, pass = config.wifi_pass;
-  String error;
-  if (!config.fromJson(body.as<JsonObjectConst>(), error)) return sendError(400, error);
-  if (!config.save()) return sendError(500, "cannot save the configuration");
-  const bool wifi_changed = ssid != config.wifi_ssid || pass != config.wifi_pass;
-  JsonDocument doc;
+// Saves `next` as the settings. `before` is kept for /api/config/undo when
+// more than the set-up progress changed. False when nothing could be saved.
+bool storeConfig(const Config& before, const Config& next, JsonObjectConst changes) {
+  config = next;
+  if (!config.save()) {
+    config = before;
+    return false;
+  }
+  if (changes.size() == 0) return true;
+  String keys;
+  bool settings = false;
+  for (JsonPairConst kv : changes) {
+    if (keys.length()) keys += ", ";
+    keys += kv.key().c_str();
+    settings = settings || strcmp(kv.key().c_str(), "setup") != 0;
+  }
+  logMsg("Settings changed: %s", keys.c_str());
+  if (settings) {
+    configKeepPrevious(before);
+    configSetChangedAt(epochNow());
+  }
+  return true;
+}
+
+void sendSaved(JsonDocument& doc, const Config& before) {
+  const bool wifi_changed = before.wifi_ssid != config.wifi_ssid || before.wifi_pass != config.wifi_pass;
   doc["saved"] = true;
   doc["restart"] = wifi_changed;
   sendJson(200, doc);
   appConfigChanged(wifi_changed);
+}
+
+void handlePostConfig() {
+  if (!authorized()) return;
+  JsonDocument body;
+  if (!parseBody(body)) return;
+  const Config before = config;
+  Config next = config;
+  String error;
+  if (!next.fromJson(body.as<JsonObjectConst>(), error)) return sendError(400, error);
+  JsonDocument doc;
+  JsonObject changes = doc["changes"].to<JsonObject>();
+  configDiff(before, next, changes);
+  if (!storeConfig(before, next, changes)) return sendError(500, "cannot save the configuration");
+  sendSaved(doc, before);
+}
+
+// The settings an undo would bring back: the previous version, with today's
+// Wi-Fi, access point and interface password (an undo never locks anyone out)
+// and today's set-up progress.
+bool previousConfig(Config& out) {
+  if (!configLoadPrevious(out)) return false;
+  out.wifi_ssid = config.wifi_ssid;
+  out.wifi_pass = config.wifi_pass;
+  out.wifi_verified = config.wifi_verified;
+  out.ap_password = config.ap_password;
+  out.ui_password = config.ui_password;
+  out.setup_done = config.setup_done;
+  out.setup_later = config.setup_later;
+  return true;
+}
+
+// What POST /api/config/undo would change, without changing it.
+void handleGetUndo() {
+  if (!authorized()) return;
+  JsonDocument doc;
+  Config previous;
+  doc["available"] = previousConfig(previous);
+  if (configChangedAt()) doc["changed_at"] = configChangedAt();
+  if (doc["available"]) configDiff(config, previous, doc["changes"].to<JsonObject>());
+  sendJson(200, doc);
+}
+
+// Brings back the settings before the last change; a second undo redoes it.
+void handleUndo() {
+  if (!authorized()) return;
+  Config previous;
+  if (!previousConfig(previous)) return sendError(409, "nothing to undo");
+  const Config before = config;
+  JsonDocument doc;
+  JsonObject changes = doc["changes"].to<JsonObject>();
+  configDiff(before, previous, changes);
+  if (!storeConfig(before, previous, changes)) return sendError(500, "cannot save the configuration");
+  sendSaved(doc, before);
+}
+
+// Entry point for scripts and agents: where the description of the API is.
+void handleApiIndex() {
+  if (!authorized()) return;
+  JsonDocument doc;
+  doc["name"] = "gauge-cam";
+  doc["version"] = GAUGECAM_VERSION;
+  doc["openapi"] = "/api/openapi.json";
+  doc["docs"] = "https://github.com/" GAUGECAM_REPO "/blob/main/docs/api.md";
+  doc["agents"] = "https://github.com/" GAUGECAM_REPO "/blob/main/docs/agents.md";
+  sendJson(200, doc);
 }
 
 // Takes a photo. A JSON body holds unsaved capture settings (LED, rotation,
@@ -308,9 +391,19 @@ void webBegin() {
     }
     server.send(404, "text/plain", "no web interface");
   });
+  server.on("/api", HTTP_GET, handleApiIndex);
+  server.on("/api/openapi.json", HTTP_GET, []() {
+    if (!authorized()) return;
+    for (const WebAsset& a : kWebAssets) {
+      if (strcmp(a.path, "/openapi.json") == 0) return serveAsset(a);
+    }
+    sendError(404, "no API description");
+  });
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/config", HTTP_GET, handleGetConfig);
   server.on("/api/config", HTTP_POST, handlePostConfig);
+  server.on("/api/config/undo", HTTP_GET, handleGetUndo);
+  server.on("/api/config/undo", HTTP_POST, handleUndo);
   server.on("/api/capture", HTTP_POST, handleCapture);
   server.on("/api/read", HTTP_POST, handleRead);
   server.on("/api/test", HTTP_POST, handleTest);

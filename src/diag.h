@@ -9,7 +9,8 @@
 void diagBegin();
 // Prints to the serial port and keeps the line for the web interface.
 void logMsg(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
-// Oldest first: [{"t": uptime s, "at": epoch or 0, "msg": "..."}].
+// Oldest first: [{"t": uptime s, "at": epoch or 0, "msg": "..."}]; the last
+// lines before a software restart or a crash come first, with "previous": true.
 void logToJson(JsonArray out);
 
 // Restart cause as an id (poweron, software, panic, task_wdt, brownout...)

@@ -41,7 +41,8 @@ Each step in detail: [docs/setup.md](docs/setup.md).
 | **Home Assistant** | Level, volume, fill level, photo, *Read now* button and firmware update, through MQTT discovery. |
 | **Updates** | Installed from Home Assistant, even without Internet on the device. The file is checked against its SHA-256 digest, and a firmware that fails rolls back on its own. |
 | **Unattended** | A watchdog, camera restarts and a log of the last 80 events. The device also explains why it restarted. |
-| **Interface** | In English and French, on a computer or a phone. |
+| **Interface** | In English and French, on a computer or a phone. A wrong setting is undone in one click. |
+| **API** | Self-described HTTP API (OpenAPI), ready for scripts and AI agents. |
 
 ## Documentation
 
@@ -52,6 +53,7 @@ Each step in detail: [docs/setup.md](docs/setup.md).
 | Updates with or without Internet | [Updates](docs/updates.md) |
 | Entities and MQTT topics | [Home Assistant](docs/home-assistant.md) |
 | Driving the device from a script | [HTTP API](docs/api.md) |
+| Letting an AI agent read and tune the gauge | [AI agents](docs/agents.md) |
 | Tests, simulator, building and releasing | [Development](docs/development.md) |
 | What changed in each version | [Changelog](CHANGELOG.md) |
 

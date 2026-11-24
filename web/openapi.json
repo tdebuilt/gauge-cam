@@ -1,0 +1,1138 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "gauge-cam",
+  "version": "0.8.0",
+  "description": "HTTP API of a gauge-cam device: an ESP32-CAM that reads an analog dial (oil tank gauge) from photos.\n\nRules for scripts and agents:\n1. Look before acting: GET /api/status, GET /api/config, GET /api/photo.jpg.\n2. Try before saving: POST /api/test with draft dial settings reads the last photo and stores nothing.\n3. Save only what changes: POST /api/config with the changed keys; the answer lists the changes.\n4. Check: POST /api/read, then compare with what you expected.\n5. If it got worse: GET /api/config/undo shows what an undo changes, POST /api/config/undo restores the previous settings.\nNever send Wi-Fi or password fields unless asked: a wrong Wi-Fi setting cuts the device off. Errors are JSON {\"error\": \"...\"} with a 4xx or 5xx status. Coordinates (roi, pivot_x/y, points, detail) are pixels of /api/photo.jpg, which is already turned by `rotation`. Docs: https://github.com/tdebuilt/gauge-cam/blob/main/docs/agents.md"
+ },
+ "security": [
+  {
+   "basic": []
+  }
+ ],
+ "paths": {
+  "/api": {
+   "get": {
+    "operationId": "index",
+    "summary": "Where this description and the docs are.",
+    "responses": {
+     "200": {
+      "description": "Links."
+     }
+    }
+   }
+  },
+  "/api/openapi.json": {
+   "get": {
+    "operationId": "openapi",
+    "summary": "This description.",
+    "responses": {
+     "200": {
+      "description": "OpenAPI document."
+     }
+    }
+   }
+  },
+  "/api/status": {
+   "get": {
+    "operationId": "getStatus",
+    "summary": "State of the device and the last readings.",
+    "description": "`good` is the last successful reading, `attempt` the last try (failed or not). Also: version, uptime_s, time, config_changed (epoch of the last settings change), wifi, mqtt, update, photo, dial_ready, next_read_s, last_failure, reset_reason.",
+    "responses": {
+     "200": {
+      "description": "Status.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "good": {
+           "$ref": "#/components/schemas/Reading"
+          },
+          "attempt": {
+           "$ref": "#/components/schemas/Reading"
+          },
+          "version": {
+           "type": "string"
+          },
+          "config_changed": {
+           "type": "integer"
+          },
+          "next_read_s": {
+           "type": "integer"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/config": {
+   "get": {
+    "operationId": "getConfig",
+    "summary": "All settings, without the passwords.",
+    "responses": {
+     "200": {
+      "description": "Settings.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Config"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "operationId": "setConfig",
+    "summary": "Save settings; absent keys keep their value.",
+    "description": "Validates everything before saving anything. The previous settings are kept for /api/config/undo. Try dial settings with /api/test first.",
+    "requestBody": {
+     "required": true,
+     "description": "Only the keys to change.",
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConfigChange"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Saved, with what changed.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "saved": {
+           "type": "boolean",
+           "description": "Stored."
+          },
+          "restart": {
+           "type": "boolean",
+           "description": "Wi-Fi changed: the device restarts."
+          },
+          "changes": {
+           "$ref": "#/components/schemas/Changes"
+          }
+         }
+        }
+       }
+      }
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "description": "Missing or wrong password (HTTP basic, user admin)."
+     }
+    }
+   }
+  },
+  "/api/config/undo": {
+   "get": {
+    "operationId": "previewUndo",
+    "summary": "What an undo would change, without changing it.",
+    "responses": {
+     "200": {
+      "description": "Preview.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "available": {
+           "type": "boolean",
+           "description": "A previous version exists."
+          },
+          "changed_at": {
+           "type": "integer",
+           "description": "Epoch of the last change."
+          },
+          "changes": {
+           "$ref": "#/components/schemas/Changes"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "operationId": "undoConfig",
+    "summary": "Bring back the settings before the last change; a second undo redoes it.",
+    "description": "Wi-Fi, access point and interface password stay as they are now.",
+    "responses": {
+     "200": {
+      "description": "Restored, with what changed.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "saved": {
+           "type": "boolean",
+           "description": "Stored."
+          },
+          "restart": {
+           "type": "boolean",
+           "description": "Wi-Fi changed: the device restarts."
+          },
+          "changes": {
+           "$ref": "#/components/schemas/Changes"
+          }
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "description": "Missing or wrong password (HTTP basic, user admin)."
+     }
+    }
+   }
+  },
+  "/api/capture": {
+   "post": {
+    "operationId": "capture",
+    "summary": "Take a photo (not a reading).",
+    "description": "An optional body tries capture settings (led_intensity, rotation, framesize, exposure...) without saving them.",
+    "requestBody": {
+     "required": false,
+     "description": "Capture settings to try.",
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConfigChange"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Photo size.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "width": {
+           "type": "integer"
+          },
+          "height": {
+           "type": "integer"
+          }
+         }
+        }
+       }
+      }
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "description": "Missing or wrong password (HTTP basic, user admin)."
+     },
+     "503": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/read": {
+   "post": {
+    "operationId": "read",
+    "summary": "Full reading: photos, needle, level; published to MQTT.",
+    "parameters": [
+     {
+      "name": "photo",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "0"
+       ]
+      },
+      "description": "0: read the last photo again instead of taking new ones."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "The reading (ok may be false).",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Reading"
+        }
+       }
+      }
+     },
+     "503": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/test": {
+   "post": {
+    "operationId": "test",
+    "summary": "Read the last photo with draft settings, without saving them.",
+    "description": "The safe way to try pivot_mode, pivot_x/y, points, min_contrast or tank settings. Nothing is stored or published.",
+    "requestBody": {
+     "required": true,
+     "description": "Draft settings.",
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConfigChange"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "The reading with the draft.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Reading"
+        }
+       }
+      }
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     },
+     "401": {
+      "description": "Missing or wrong password (HTTP basic, user admin)."
+     }
+    }
+   }
+  },
+  "/api/photo.jpg": {
+   "get": {
+    "operationId": "getPhoto",
+    "summary": "Last photo, already turned by `rotation`; the pixel space of roi, pivot and points.",
+    "responses": {
+     "200": {
+      "description": "JPEG.",
+      "content": {
+       "image/jpeg": {
+        "schema": {
+         "type": "string",
+         "format": "binary"
+        }
+       }
+      }
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/failures": {
+   "get": {
+    "operationId": "getFailures",
+    "summary": "Last refused readings, newest first.",
+    "responses": {
+     "200": {
+      "description": "Readings with id and photo (bool).",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Reading"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/failure.jpg": {
+   "get": {
+    "operationId": "getFailurePhoto",
+    "summary": "Photo of a refused reading.",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "JPEG.",
+      "content": {
+       "image/jpeg": {
+        "schema": {
+         "type": "string",
+         "format": "binary"
+        }
+       }
+      }
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/log": {
+   "get": {
+    "operationId": "getLog",
+    "summary": "Last 80 events, oldest first.",
+    "description": "Each line: t (uptime s), at (epoch or 0), msg; `previous: true` for the last lines before a restart or a crash. Settings changes show as `Settings changed: <keys>`.",
+    "responses": {
+     "200": {
+      "description": "Lines.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "t": {
+            "type": "integer"
+           },
+           "at": {
+            "type": "integer"
+           },
+           "msg": {
+            "type": "string"
+           },
+           "previous": {
+            "type": "boolean"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/wifi/scan": {
+   "get": {
+    "operationId": "scanWifi",
+    "summary": "Wi-Fi networks in range (takes a few seconds).",
+    "responses": {
+     "200": {
+      "description": "ssid, rssi, open."
+     }
+    }
+   }
+  },
+  "/api/mqtt/test": {
+   "post": {
+    "operationId": "testMqtt",
+    "summary": "Try one MQTT connection with draft settings.",
+    "requestBody": {
+     "required": true,
+     "description": "MQTT settings to try.",
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ConfigChange"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "ok and error."
+     }
+    }
+   }
+  },
+  "/api/update/check": {
+   "post": {
+    "operationId": "checkUpdate",
+    "summary": "Look for a new release now.",
+    "responses": {
+     "200": {
+      "description": "Started; see update in /api/status."
+     }
+    }
+   }
+  },
+  "/api/update/install": {
+   "post": {
+    "operationId": "installUpdate",
+    "summary": "Install the release found. The device restarts.",
+    "responses": {
+     "200": {
+      "description": "Started."
+     },
+     "503": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/update": {
+   "post": {
+    "operationId": "uploadFirmware",
+    "summary": "Install an uploaded gauge-cam.bin (multipart). The device restarts.",
+    "responses": {
+     "200": {
+      "description": "Installed."
+     },
+     "500": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/api/restart": {
+   "post": {
+    "operationId": "restart",
+    "summary": "Restart the device.",
+    "responses": {
+     "200": {
+      "description": "Restarting."
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "securitySchemes": {
+   "basic": {
+    "type": "http",
+    "scheme": "basic",
+    "description": "User admin and the interface password, when one is set."
+   }
+  },
+  "schemas": {
+   "Config": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Device name, shown in the interface and Home Assistant."
+     },
+     "lang": {
+      "type": "string",
+      "description": "Language of the Home Assistant entity names.",
+      "enum": [
+       "fr",
+       "en"
+      ]
+     },
+     "wifi_ssid": {
+      "type": "string",
+      "description": "Wi-Fi network. Changing it restarts the device."
+     },
+     "mqtt_host": {
+      "type": "string",
+      "description": "MQTT broker, empty: no MQTT."
+     },
+     "mqtt_port": {
+      "type": "integer",
+      "description": "MQTT port.",
+      "default": 1883
+     },
+     "mqtt_user": {
+      "type": "string",
+      "description": "MQTT user."
+     },
+     "mqtt_prefix": {
+      "type": "string",
+      "description": "Prefix of the device topics.",
+      "default": "gauge-cam"
+     },
+     "discovery_prefix": {
+      "type": "string",
+      "description": "Home Assistant discovery prefix.",
+      "default": "homeassistant"
+     },
+     "ha_discovery": {
+      "type": "boolean",
+      "description": "Announce the entities to Home Assistant."
+     },
+     "ntp_server": {
+      "type": "string",
+      "description": "Time server, empty: no clock and no timestamps."
+     },
+     "update_check": {
+      "type": "boolean",
+      "description": "Look for a new release once a day."
+     },
+     "update_url": {
+      "type": "string",
+      "description": "Update source: empty = GitHub, else the address of a local mirror."
+     },
+     "interval_s": {
+      "type": "integer",
+      "description": "Seconds between scheduled readings.",
+      "minimum": 60,
+      "default": 3600
+     },
+     "framesize": {
+      "type": "string",
+      "description": "Photo resolution.",
+      "enum": [
+       "QVGA",
+       "VGA",
+       "SVGA"
+      ]
+     },
+     "vflip": {
+      "type": "boolean",
+      "description": "Flip the photo vertically."
+     },
+     "hmirror": {
+      "type": "boolean",
+      "description": "Mirror the photo."
+     },
+     "rotation": {
+      "type": "integer",
+      "description": "Clockwise rotation after the flips.",
+      "enum": [
+       0,
+       90,
+       180,
+       270
+      ]
+     },
+     "led_intensity": {
+      "type": "integer",
+      "description": "Flash LED, 0 = off.",
+      "minimum": 0,
+      "maximum": 255
+     },
+     "led_ms": {
+      "type": "integer",
+      "description": "How long the LED is on before the photo, ms."
+     },
+     "cam_brightness": {
+      "type": "integer",
+      "description": "Sensor brightness.",
+      "minimum": -2,
+      "maximum": 2
+     },
+     "cam_contrast": {
+      "type": "integer",
+      "description": "Sensor contrast.",
+      "minimum": -2,
+      "maximum": 2
+     },
+     "exposure_auto": {
+      "type": "boolean",
+      "description": "Automatic exposure and gain."
+     },
+     "exposure": {
+      "type": "integer",
+      "description": "Fixed exposure when exposure_auto is false.",
+      "minimum": 0,
+      "maximum": 1200
+     },
+     "gain": {
+      "type": "integer",
+      "description": "Fixed gain when exposure_auto is false.",
+      "minimum": 0,
+      "maximum": 30
+     },
+     "jpeg_quality": {
+      "type": "integer",
+      "description": "JPEG quality, 4 (best) to 63.",
+      "minimum": 4,
+      "maximum": 63
+     },
+     "roi": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      },
+      "minItems": 4,
+      "maxItems": 4,
+      "description": "Dial frame [x, y, w, h] in photo pixels."
+     },
+     "pivot_mode": {
+      "type": "string",
+      "description": "Needle centre: `hub` = found on the photo each time, `fixed` = pivot_x/pivot_y.",
+      "enum": [
+       "hub",
+       "fixed"
+      ]
+     },
+     "pivot_x": {
+      "type": "number",
+      "description": "Needle centre x, photo pixels (-1: not set)."
+     },
+     "pivot_y": {
+      "type": "number",
+      "description": "Needle centre y, photo pixels (-1: not set)."
+     },
+     "points": {
+      "type": "array",
+      "description": "Graduations in dial order: [x, y, value], photo pixels and dial unit. At least the start and the end.",
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "unit": {
+      "type": "string",
+      "description": "Unit of the dial values.",
+      "default": "cm"
+     },
+     "min_contrast": {
+      "type": "number",
+      "description": "Weakest needle contrast accepted."
+     },
+     "samples": {
+      "type": "integer",
+      "description": "Photos per scheduled reading; the median is kept.",
+      "minimum": 1,
+      "maximum": 5
+     },
+     "max_jump": {
+      "type": "number",
+      "description": "Larger level change than this must be confirmed by the next readings (0 = off)."
+     },
+     "tank_shape": {
+      "type": "string",
+      "description": "Tank shape: box, horizontal cylinder, vertical cylinder or a level -> litres table.",
+      "enum": [
+       "box",
+       "hcyl",
+       "vcyl",
+       "table"
+      ]
+     },
+     "tank_length_cm": {
+      "type": "number",
+      "description": "Inner length, cm."
+     },
+     "tank_width_cm": {
+      "type": "number",
+      "description": "Inner width, cm."
+     },
+     "tank_height_cm": {
+      "type": "number",
+      "description": "Inner height, cm."
+     },
+     "tank_diameter_cm": {
+      "type": "number",
+      "description": "Inner diameter, cm."
+     },
+     "tank_table": {
+      "type": "array",
+      "description": "[level, litres] rows, levels increasing, at most 40.",
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 2,
+       "maxItems": 2
+      }
+     },
+     "level_offset_cm": {
+      "type": "number",
+      "description": "Level when the gauge reads 0."
+     },
+     "setup": {
+      "type": "object",
+      "description": "Set-up steps photo, frame, grad, check, tank, ha: `done`, `later`, or null (to do again). Absent steps keep their state.",
+      "additionalProperties": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "enum": [
+        "done",
+        "later",
+        null
+       ]
+      }
+     },
+     "ui_password_set": {
+      "type": "boolean",
+      "description": "Whether ui_password is set."
+     },
+     "wifi_pass_set": {
+      "type": "boolean",
+      "description": "Whether wifi_pass is set."
+     },
+     "mqtt_pass_set": {
+      "type": "boolean",
+      "description": "Whether mqtt_pass is set."
+     },
+     "ap_password_set": {
+      "type": "boolean",
+      "description": "Whether ap_password is set."
+     }
+    }
+   },
+   "ConfigChange": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Device name, shown in the interface and Home Assistant."
+     },
+     "lang": {
+      "type": "string",
+      "description": "Language of the Home Assistant entity names.",
+      "enum": [
+       "fr",
+       "en"
+      ]
+     },
+     "ui_password": {
+      "type": "string",
+      "writeOnly": true,
+      "description": "Password of the interface and API (user admin). Write only: an empty value keeps the stored one, `<key>_clear: true` erases it. GET /api/config only says `<key>_set`."
+     },
+     "wifi_ssid": {
+      "type": "string",
+      "description": "Wi-Fi network. Changing it restarts the device."
+     },
+     "wifi_pass": {
+      "type": "string",
+      "writeOnly": true,
+      "description": "Wi-Fi password. Changing it restarts the device. Write only: an empty value keeps the stored one, `<key>_clear: true` erases it. GET /api/config only says `<key>_set`."
+     },
+     "ap_password": {
+      "type": "string",
+      "writeOnly": true,
+      "description": "WPA2 password of the fallback access point, 8 to 63 characters. Write only: an empty value keeps the stored one, `<key>_clear: true` erases it. GET /api/config only says `<key>_set`."
+     },
+     "mqtt_host": {
+      "type": "string",
+      "description": "MQTT broker, empty: no MQTT."
+     },
+     "mqtt_port": {
+      "type": "integer",
+      "description": "MQTT port.",
+      "default": 1883
+     },
+     "mqtt_user": {
+      "type": "string",
+      "description": "MQTT user."
+     },
+     "mqtt_pass": {
+      "type": "string",
+      "writeOnly": true,
+      "description": "MQTT password. Changing host, port or user needs it again. Write only: an empty value keeps the stored one, `<key>_clear: true` erases it. GET /api/config only says `<key>_set`."
+     },
+     "mqtt_prefix": {
+      "type": "string",
+      "description": "Prefix of the device topics.",
+      "default": "gauge-cam"
+     },
+     "discovery_prefix": {
+      "type": "string",
+      "description": "Home Assistant discovery prefix.",
+      "default": "homeassistant"
+     },
+     "ha_discovery": {
+      "type": "boolean",
+      "description": "Announce the entities to Home Assistant."
+     },
+     "ntp_server": {
+      "type": "string",
+      "description": "Time server, empty: no clock and no timestamps."
+     },
+     "update_check": {
+      "type": "boolean",
+      "description": "Look for a new release once a day."
+     },
+     "update_url": {
+      "type": "string",
+      "description": "Update source: empty = GitHub, else the address of a local mirror."
+     },
+     "interval_s": {
+      "type": "integer",
+      "description": "Seconds between scheduled readings.",
+      "minimum": 60,
+      "default": 3600
+     },
+     "framesize": {
+      "type": "string",
+      "description": "Photo resolution.",
+      "enum": [
+       "QVGA",
+       "VGA",
+       "SVGA"
+      ]
+     },
+     "vflip": {
+      "type": "boolean",
+      "description": "Flip the photo vertically."
+     },
+     "hmirror": {
+      "type": "boolean",
+      "description": "Mirror the photo."
+     },
+     "rotation": {
+      "type": "integer",
+      "description": "Clockwise rotation after the flips.",
+      "enum": [
+       0,
+       90,
+       180,
+       270
+      ]
+     },
+     "led_intensity": {
+      "type": "integer",
+      "description": "Flash LED, 0 = off.",
+      "minimum": 0,
+      "maximum": 255
+     },
+     "led_ms": {
+      "type": "integer",
+      "description": "How long the LED is on before the photo, ms."
+     },
+     "cam_brightness": {
+      "type": "integer",
+      "description": "Sensor brightness.",
+      "minimum": -2,
+      "maximum": 2
+     },
+     "cam_contrast": {
+      "type": "integer",
+      "description": "Sensor contrast.",
+      "minimum": -2,
+      "maximum": 2
+     },
+     "exposure_auto": {
+      "type": "boolean",
+      "description": "Automatic exposure and gain."
+     },
+     "exposure": {
+      "type": "integer",
+      "description": "Fixed exposure when exposure_auto is false.",
+      "minimum": 0,
+      "maximum": 1200
+     },
+     "gain": {
+      "type": "integer",
+      "description": "Fixed gain when exposure_auto is false.",
+      "minimum": 0,
+      "maximum": 30
+     },
+     "jpeg_quality": {
+      "type": "integer",
+      "description": "JPEG quality, 4 (best) to 63.",
+      "minimum": 4,
+      "maximum": 63
+     },
+     "roi": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      },
+      "minItems": 4,
+      "maxItems": 4,
+      "description": "Dial frame [x, y, w, h] in photo pixels."
+     },
+     "pivot_mode": {
+      "type": "string",
+      "description": "Needle centre: `hub` = found on the photo each time, `fixed` = pivot_x/pivot_y.",
+      "enum": [
+       "hub",
+       "fixed"
+      ]
+     },
+     "pivot_x": {
+      "type": "number",
+      "description": "Needle centre x, photo pixels (-1: not set)."
+     },
+     "pivot_y": {
+      "type": "number",
+      "description": "Needle centre y, photo pixels (-1: not set)."
+     },
+     "points": {
+      "type": "array",
+      "description": "Graduations in dial order: [x, y, value], photo pixels and dial unit. At least the start and the end.",
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "unit": {
+      "type": "string",
+      "description": "Unit of the dial values.",
+      "default": "cm"
+     },
+     "min_contrast": {
+      "type": "number",
+      "description": "Weakest needle contrast accepted."
+     },
+     "samples": {
+      "type": "integer",
+      "description": "Photos per scheduled reading; the median is kept.",
+      "minimum": 1,
+      "maximum": 5
+     },
+     "max_jump": {
+      "type": "number",
+      "description": "Larger level change than this must be confirmed by the next readings (0 = off)."
+     },
+     "tank_shape": {
+      "type": "string",
+      "description": "Tank shape: box, horizontal cylinder, vertical cylinder or a level -> litres table.",
+      "enum": [
+       "box",
+       "hcyl",
+       "vcyl",
+       "table"
+      ]
+     },
+     "tank_length_cm": {
+      "type": "number",
+      "description": "Inner length, cm."
+     },
+     "tank_width_cm": {
+      "type": "number",
+      "description": "Inner width, cm."
+     },
+     "tank_height_cm": {
+      "type": "number",
+      "description": "Inner height, cm."
+     },
+     "tank_diameter_cm": {
+      "type": "number",
+      "description": "Inner diameter, cm."
+     },
+     "tank_table": {
+      "type": "array",
+      "description": "[level, litres] rows, levels increasing, at most 40.",
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 2,
+       "maxItems": 2
+      }
+     },
+     "level_offset_cm": {
+      "type": "number",
+      "description": "Level when the gauge reads 0."
+     },
+     "setup": {
+      "type": "object",
+      "description": "Set-up steps photo, frame, grad, check, tank, ha: `done`, `later`, or null (to do again). Absent steps keep their state.",
+      "additionalProperties": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "enum": [
+        "done",
+        "later",
+        null
+       ]
+      }
+     }
+    }
+   },
+   "Reading": {
+    "type": "object",
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "description": "The reading succeeded."
+     },
+     "error": {
+      "type": "string",
+      "description": "Why it failed (English)."
+     },
+     "suspect": {
+      "type": "boolean",
+      "description": "Refused for now: a jump that the next readings must confirm."
+     },
+     "age_s": {
+      "type": "integer",
+      "description": "Seconds since the reading, -1: none yet."
+     },
+     "at": {
+      "type": "integer",
+      "description": "Epoch of the reading, when the clock is set."
+     },
+     "level": {
+      "type": "number",
+      "description": "Needle value in `unit`."
+     },
+     "unit": {
+      "type": "string",
+      "description": "Dial unit."
+     },
+     "volume_l": {
+      "type": "number",
+      "description": "Litres, once the tank is set."
+     },
+     "percent": {
+      "type": "number",
+      "description": "Fill level, %."
+     },
+     "detail": {
+      "type": "object",
+      "description": "How the dial was found: cx, cy (needle centre), hub_radius, r_start, r_end, scale_start, scale_direction, scale_span, needle_angle, contrast, gauge_value."
+     }
+    }
+   },
+   "Changes": {
+    "type": "object",
+    "description": "Changed settings by key: {\"before\": old, \"after\": new}; a secret shows as \"changed\".",
+    "additionalProperties": true
+   },
+   "Error": {
+    "type": "object",
+    "properties": {
+     "error": {
+      "type": "string",
+      "description": "What went wrong, in English."
+     }
+    },
+    "required": [
+     "error"
+    ]
+   }
+  },
+  "responses": {
+   "Error": {
+    "description": "Refused.",
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/Error"
+      }
+     }
+    }
+   }
+  }
+ }
+}

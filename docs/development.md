@@ -22,10 +22,14 @@ also accepts firmware uploads, to try the update tools.
 | `web/` | the interface, compressed into the firmware at build time (`tools/prebuild.py`, 150 KB at most) |
 | `flasher/index.html` | the flasher page on GitHub Pages |
 | `tools/` | simulator, test images, fonts, update tools |
+| `skills/gauge-cam/` | the skill for AI agents ([AI agents](agents.md)) |
 | `docs/plan-refonte-ux.md` | design decisions of the interface |
 
 The interface uses two fonts cut down by `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`).
 The flasher page uses the same ones. More languages go in `web/i18n.js`.
+
+`web/openapi.json` describes the API and is served by the device. Update it with every route or
+setting: `test/host/run.sh` fails when it misses a route of `src/web.cpp`.
 
 ## Releasing
 

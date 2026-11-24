@@ -18,7 +18,8 @@ except NameError:  # run by hand
 WEB = os.path.join(ROOT, "web")
 OUT = os.path.join(ROOT, "src", "generated")
 TYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css",
-         ".svg": "image/svg+xml", ".woff2": "font/woff2"}
+         ".svg": "image/svg+xml", ".woff2": "font/woff2",
+         ".json": "application/json"}
 BUDGET = 150 * 1024  # gzipped bytes for the whole interface, fonts included (docs/plan-refonte-ux.md)
 
 

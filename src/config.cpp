@@ -8,6 +8,9 @@ namespace {
 
 constexpr const char* kNamespace = "gaugecam";
 constexpr const char* kKey = "config";
+constexpr const char* kPreviousKey = "previous";
+constexpr const char* kChangedAtKey = "changed_at";
+constexpr const char* kSecrets[] = {"ui_password", "wifi_pass", "mqtt_pass", "ap_password"};
 
 template <typename T>
 void take(JsonObjectConst in, const char* key, T& field) {
@@ -288,19 +291,9 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   return true;
 }
 
-bool Config::load() {
-  Preferences prefs;
-  if (!prefs.begin(kNamespace, true)) return false;
-  const size_t len = prefs.getBytesLength(kKey);
-  if (len == 0) {
-    prefs.end();
-    return false;
-  }
-  std::vector<char> buf(len);
-  prefs.getBytes(kKey, buf.data(), len);
-  prefs.end();
+bool Config::fromStored(const char* text, size_t len) {
   JsonDocument doc;
-  if (deserializeJson(doc, buf.data(), len)) return false;
+  if (deserializeJson(doc, text, len)) return false;
   String error;
   if (!fromJson(doc.as<JsonObjectConst>(), error)) return false;
   wifi_verified = doc["wifi_verified"] | false;
@@ -313,14 +306,89 @@ bool Config::load() {
   return true;
 }
 
-bool Config::save() const {
+namespace {
+
+bool readBlob(const char* key, std::vector<char>& buf) {
+  Preferences prefs;
+  if (!prefs.begin(kNamespace, true)) return false;
+  const size_t len = prefs.getBytesLength(key);
+  buf.resize(len);
+  if (len) prefs.getBytes(key, buf.data(), len);
+  prefs.end();
+  return len > 0;
+}
+
+bool writeConfig(const char* key, const Config& c) {
   JsonDocument doc;
-  toJson(doc.to<JsonObject>(), true);
+  c.toJson(doc.to<JsonObject>(), true);
   String text;
   serializeJson(doc, text);
   Preferences prefs;
   if (!prefs.begin(kNamespace, false)) return false;
-  const bool ok = prefs.putBytes(kKey, text.c_str(), text.length()) == text.length();
+  const bool ok = prefs.putBytes(key, text.c_str(), text.length()) == text.length();
   prefs.end();
   return ok;
+}
+
+uint32_t changed_at = 0;
+bool changed_at_loaded = false;
+
+}  // namespace
+
+bool Config::load() {
+  std::vector<char> buf;
+  return readBlob(kKey, buf) && fromStored(buf.data(), buf.size());
+}
+
+bool Config::save() const { return writeConfig(kKey, *this); }
+
+void configDiff(const Config& before, const Config& after, JsonObject out) {
+  JsonDocument a, b;
+  before.toJson(a.to<JsonObject>(), true);
+  after.toJson(b.to<JsonObject>(), true);
+  for (JsonPair kv : b.as<JsonObject>()) {
+    const char* key = kv.key().c_str();
+    if (strcmp(key, "wifi_verified") == 0) continue;  // device state, not a setting
+    String was, now;
+    serializeJson(a[key], was);
+    serializeJson(kv.value(), now);
+    if (was == now) continue;
+    bool secret = false;
+    for (const char* s : kSecrets) secret = secret || strcmp(s, key) == 0;
+    if (secret) {
+      out[key] = "changed";
+    } else {
+      out[key]["before"] = a[key];
+      out[key]["after"] = kv.value();
+    }
+  }
+}
+
+bool configKeepPrevious(const Config& before) { return writeConfig(kPreviousKey, before); }
+
+bool configLoadPrevious(Config& out) {
+  std::vector<char> buf;
+  out = Config();
+  return readBlob(kPreviousKey, buf) && out.fromStored(buf.data(), buf.size());
+}
+
+uint32_t configChangedAt() {
+  if (!changed_at_loaded) {
+    Preferences prefs;
+    if (prefs.begin(kNamespace, true)) {
+      changed_at = prefs.getUInt(kChangedAtKey, 0);
+      prefs.end();
+    }
+    changed_at_loaded = true;
+  }
+  return changed_at;
+}
+
+void configSetChangedAt(uint32_t epoch) {
+  changed_at = epoch;
+  changed_at_loaded = true;
+  Preferences prefs;
+  if (!prefs.begin(kNamespace, false)) return;
+  prefs.putUInt(kChangedAtKey, epoch);
+  prefs.end();
 }

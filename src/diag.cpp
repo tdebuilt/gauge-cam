@@ -17,6 +17,7 @@ constexpr uint32_t kValidEpoch = 1700000000;  // the clock is set after this
 struct Line {
   uint32_t uptime_s;
   uint32_t epoch;
+  bool previous;  // written before the last restart
   char text[kLineSize];
 };
 
@@ -31,6 +32,22 @@ struct Persistent {
   uint8_t camera_restarts;
 };
 RTC_NOINIT_ATTR Persistent persistent;
+
+// The last lines of the log, kept across a software restart or a crash so
+// that the log still explains what happened before it.
+constexpr size_t kKeptLines = 16;
+constexpr size_t kKeptSize = 100;
+constexpr uint32_t kKeptMagic = 0x67616c31;  // "gal1"
+struct KeptLog {
+  uint32_t magic;
+  uint32_t count;
+  struct {
+    uint32_t uptime_s;
+    uint32_t epoch;
+    char text[kKeptSize];
+  } lines[kKeptLines];
+};
+RTC_NOINIT_ATTR KeptLog kept;
 
 struct Reason {
   esp_reset_reason_t code;
@@ -69,6 +86,21 @@ void diagBegin() {
 
   lines = static_cast<Line*>(ps_malloc(kLines * sizeof(Line)));
   if (!lines) lines = static_cast<Line*>(malloc(kLines * sizeof(Line)));
+
+  const bool cold = code == ESP_RST_POWERON || code == ESP_RST_BROWNOUT;
+  if (!cold && kept.magic == kKeptMagic && lines) {
+    const uint32_t first = kept.count > kKeptLines ? kept.count - kKeptLines : 0;
+    for (uint32_t i = first; i < kept.count; ++i) {
+      const auto& k = kept.lines[i % kKeptLines];
+      Line& line = lines[line_count++ % kLines];
+      line.uptime_s = k.uptime_s;
+      line.epoch = k.epoch;
+      line.previous = true;
+      strlcpy(line.text, k.text, sizeof line.text);
+    }
+  }
+  kept.magic = kKeptMagic;
+  kept.count = 0;
 }
 
 void logMsg(const char* fmt, ...) {
@@ -82,8 +114,13 @@ void logMsg(const char* fmt, ...) {
   Line& line = lines[line_count % kLines];
   line.uptime_s = millis() / 1000;
   line.epoch = epochNow();
+  line.previous = false;
   memcpy(line.text, text, sizeof text);
   ++line_count;
+  auto& k = kept.lines[kept.count++ % kKeptLines];
+  k.uptime_s = line.uptime_s;
+  k.epoch = line.epoch;
+  strlcpy(k.text, text, sizeof k.text);
 }
 
 void logToJson(JsonArray out) {
@@ -95,6 +132,7 @@ void logToJson(JsonArray out) {
     o["t"] = line.uptime_s;
     o["at"] = line.epoch;
     o["msg"] = line.text;
+    if (line.previous) o["previous"] = true;
   }
 }
 

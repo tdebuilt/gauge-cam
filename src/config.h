@@ -94,8 +94,22 @@ struct Config {
   // Returns false and sets `error` when a value is invalid.
   bool fromJson(JsonObjectConst in, String& error);
 
+  // Applies a configuration stored by save() over this one (the defaults at
+  // boot), secrets and device state included.
+  bool fromStored(const char* text, size_t len);
   bool load();
   bool save() const;
 };
 
 extern Config config;
+
+// Changes from `before` to `after`, by top-level key: {"key": {"before": ...,
+// "after": ...}}; a secret only shows as "changed", never its value.
+void configDiff(const Config& before, const Config& after, JsonObject out);
+
+// The settings before the last change, kept for /api/config/undo.
+bool configKeepPrevious(const Config& before);
+bool configLoadPrevious(Config& out);
+// When the settings last changed (epoch, 0: unknown or never).
+uint32_t configChangedAt();
+void configSetChangedAt(uint32_t epoch);

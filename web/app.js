@@ -1542,16 +1542,56 @@ function logStamp(line) {
 }
 
 async function loadLog() {
+  loadUndo();
   try {
     const lines = await api("/api/log");
     const pre = $("#s-log");
-    pre.textContent = lines.map((l) => `${logStamp(l)}  ${l.msg}`).join("\n") || t("s.logEmpty");
+    const text = [];
+    lines.forEach((l, i) => {
+      text.push(`${logStamp(l)}  ${l.msg}`);
+      if (l.previous && !lines[i + 1]?.previous) text.push(t("s.logRestart"));
+    });
+    pre.textContent = text.join("\n") || t("s.logEmpty");
     pre.scrollTop = pre.scrollHeight;
   } catch (e) {
     toast(e.message, true);
   }
 }
 $("#s-log-refresh").addEventListener("click", (e) => busy(e.target, loadLog));
+
+// Settings grouped as in the interface, to say what a change touched.
+const GROUPS = [
+  ["dial", /^(roi|pivot_|points|unit|min_contrast|max_jump|samples)/],
+  ["tank", /^(tank_|level_offset)/],
+  ["camera", /^(interval_s|framesize|vflip|hmirror|rotation|led_|cam_|exposure|gain|jpeg_quality)/],
+  ["network", /^(mqtt_|discovery_prefix|ha_discovery|ntp_server|wifi_|ap_password)/],
+  ["system", /./],
+];
+function changedGroups(changes) {
+  const found = new Set(Object.keys(changes || {}).filter((k) => k !== "setup")
+    .map((k) => GROUPS.find(([, re]) => re.test(k))[0]));
+  return GROUPS.filter(([g]) => found.has(g)).map(([g]) => t(`grp.${g}`)).join(", ");
+}
+
+async function loadUndo() {
+  try {
+    const u = await api("/api/config/undo");
+    const what = changedGroups(u.changes);
+    $("#s-undo").disabled = !u.available || !what;
+    $("#s-undo-info").textContent = u.available && what
+      ? t("s.undoInfo", { date: u.changed_at ? dateTime(u.changed_at) : "?", what }) : t("s.undoNone");
+  } catch { /* older firmware: no undo */ }
+}
+
+$("#s-undo").addEventListener("click", (e) => busy(e.target, async () => {
+  const r = await post("/api/config/undo");
+  cfg = await api("/api/config");
+  renderForms();
+  dial.loaded = false;
+  toast(t("s.undone", { what: changedGroups(r.changes) }));
+  await loadUndo();
+  refresh();
+}));
 
 $("#s-update").addEventListener("click", (e) => {
   const file = $("#s-file").files[0];

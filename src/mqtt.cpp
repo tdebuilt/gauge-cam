@@ -43,6 +43,7 @@ const char* label(const char* key) {
       {"boot", "Dernier démarrage", "Last start"},
       {"reset_reason", "Cause du dernier redémarrage", "Last restart cause"},
       {"heap", "Mémoire libre", "Free memory"},
+      {"config_changed", "Dernier changement de réglages", "Last settings change"},
       {"firmware", "Firmware", "Firmware"},
   };
   for (const Entry& e : kNames) {
@@ -129,7 +130,8 @@ constexpr struct {
 } kEntities[] = {
     {"sensor", "level"}, {"sensor", "volume"}, {"sensor", "percent"}, {"sensor", "last_reading"},
     {"sensor", "angle"}, {"sensor", "contrast"}, {"sensor", "rssi"}, {"sensor", "status"},
-    {"sensor", "boot"}, {"sensor", "reset_reason"}, {"sensor", "heap"}, {"image", "photo"},
+    {"sensor", "boot"}, {"sensor", "reset_reason"}, {"sensor", "heap"}, {"sensor", "config_changed"},
+    {"image", "photo"},
     {"button", "read"}, {"update", "firmware"},
 };
 
@@ -163,6 +165,7 @@ void publishDiscovery() {
   sensor({"boot", "diag", "boot", nullptr, "timestamp", true, false, false});
   sensor({"reset_reason", "diag", "reset_reason", nullptr, nullptr, true, false, false});
   sensor({"heap", "diag", "heap_free", "B", "data_size", true, false, false}, true, false);
+  sensor({"config_changed", "diag", "config_changed", nullptr, "timestamp", true, false, false});
   {
     JsonDocument doc;
     doc["name"] = label("photo");
@@ -198,6 +201,7 @@ void publishDiag() {
   doc["reset_reason"] = resetReasonLabel();
   doc["heap_free"] = ESP.getFreeHeap();
   doc["version"] = GAUGECAM_VERSION;
+  if (configChangedAt()) doc["config_changed"] = isoTime(configChangedAt());
   String payload;
   serializeJson(doc, payload);
   client.publish(topic("diag").c_str(), payload.c_str(), true);

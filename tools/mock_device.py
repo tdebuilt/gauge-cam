@@ -36,7 +36,8 @@ from oil_dial import draw_oil_dial  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, "web")
 CLI = os.path.join(ROOT, "build", "gauge_cli")
-TYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".woff2": "font/woff2"}
+TYPES = {".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".woff2": "font/woff2",
+         ".json": "application/json"}
 SECRETS = ("wifi_pass", "mqtt_pass", "ui_password", "ap_password")
 
 CONFIG = {
@@ -62,6 +63,7 @@ FAILURES = []  # newest first, at most 4
 UPDATE = {"installed": "v0.1.0", "latest": "", "checked": 0, "busy": False, "progress": None,
           "error": "", "restart_note": ""}
 LOG = []
+HISTORY = {"previous": None, "changed_at": 0}  # as configKeepPrevious() and configChangedAt()
 STATE = {"photo": None, "photo_size": (0, 0), "photo_at": 0, "failure_id": 0, "attempt": None, "good": None, "boot": time.time()}
 DIAL = draw_oil_dial(100)[0]
 TMP = tempfile.mkdtemp(prefix="gauge-cam-mock-")
@@ -283,13 +285,41 @@ def merged_config(body):
     return nxt
 
 
-def apply_config(body):
-    nxt = merged_config(body)
+def config_diff(before, after):
+    """As configDiff(): changed keys, secrets without their value."""
+    out = {}
+    for key, value in after.items():
+        if before.get(key) != value:
+            out[key] = "changed" if key in SECRETS else {"before": before.get(key), "after": value}
+    return out
+
+
+def store_config(nxt):
+    """As storeConfig() in web.cpp: saves, logs the changed keys, keeps the previous version."""
+    changes = config_diff(CONFIG, nxt)
     restart = nxt["wifi_ssid"] != CONFIG["wifi_ssid"] or nxt["wifi_pass"] != CONFIG["wifi_pass"]
+    if changes:
+        log("Settings changed: " + ", ".join(changes))
+        if set(changes) != {"setup"}:
+            HISTORY.update(previous=copy.deepcopy(CONFIG), changed_at=int(time.time()))
     CONFIG.clear()
     CONFIG.update(nxt)
     FILTER.update(ref=None, pending=0)
-    return restart
+    return {"saved": True, "restart": restart, "changes": changes}
+
+
+def apply_config(body):
+    return store_config(merged_config(body))
+
+
+def previous_config():
+    """The settings an undo brings back: Wi-Fi, access point, password and set-up progress stay."""
+    if not HISTORY["previous"]:
+        return None
+    prev = copy.deepcopy(HISTORY["previous"])
+    for key in ("wifi_ssid", "wifi_pass", "ap_password", "ui_password", "setup"):
+        prev[key] = copy.deepcopy(CONFIG[key])
+    return prev
 
 
 def take_reading(fresh=True):
@@ -377,6 +407,7 @@ class Handler(BaseHTTPRequestHandler):
                 "name": CONFIG["name"], "id": "gauge-cam-mock01", "version": UPDATE["installed"],
                 "uptime_s": int(time.time() - STATE["boot"]), "heap_free": 180000, "heap_min": 121000,
                 "psram_free": 3200000, "time": int(time.time()),
+                **({"config_changed": HISTORY["changed_at"]} if HISTORY["changed_at"] else {}),
                 "reset_reason": "software" if UPDATE["restart_note"] else "poweron",
                 **({"restart_note": UPDATE["restart_note"]} if UPDATE["restart_note"] else {}),
                 "update": update_json(),
@@ -395,6 +426,17 @@ class Handler(BaseHTTPRequestHandler):
             })
         if path == "/api/config":
             return self.send(200, public_config())
+        if path == "/api/config/undo":
+            prev = previous_config()
+            return self.send(200, {"available": prev is not None,
+                                   **({"changed_at": HISTORY["changed_at"]} if HISTORY["changed_at"] else {}),
+                                   **({"changes": config_diff(CONFIG, prev)} if prev else {})})
+        if path == "/api":
+            return self.send(200, {"name": "gauge-cam", "version": UPDATE["installed"], "openapi": "/api/openapi.json",
+                                   "docs": "https://github.com/tdebuilt/gauge-cam/blob/main/docs/api.md",
+                                   "agents": "https://github.com/tdebuilt/gauge-cam/blob/main/docs/agents.md"})
+        if path == "/api/openapi.json":
+            path = "/openapi.json"
         if path == "/api/photo.jpg":
             if not STATE["photo"]:
                 return self.send(404, {"error": "no photo yet"})
@@ -422,11 +464,19 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         try:
             if path == "/api/config":
-                restart = apply_config(self.body())
+                result = apply_config(self.body())
                 # As appConfigChanged(): the next reading comes 5 s later.
                 if CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2:
                     threading.Timer(5, take_reading).start()
-                return self.send(200, {"saved": True, "restart": restart})
+                return self.send(200, result)
+            if path == "/api/config/undo":
+                prev = previous_config()
+                if prev is None:
+                    return self.send(409, {"error": "nothing to undo"})
+                result = store_config(prev)
+                if CONFIG["pivot_x"] >= 0 and len(CONFIG["points"]) >= 2:
+                    threading.Timer(5, take_reading).start()
+                return self.send(200, result)
             if path == "/api/capture":
                 draft = copy.deepcopy(CONFIG)
                 draft.update({k: v for k, v in self.body().items() if k in draft})

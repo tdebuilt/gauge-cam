@@ -3,6 +3,15 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.0
+
+2026-11-24
+
+- Settings → System → *Undo the last change*; also `POST /api/config/undo` (a second undo redoes).
+- Every settings change is logged with its keys, and shown in Home Assistant (*Last settings change*).
+- The log keeps its last lines across a restart or a crash.
+- The device describes its API (`/api/openapi.json`); a skill and a guide let AI agents use it.
+
 ## v0.7.3
 
 2026-11-24

@@ -41,7 +41,8 @@ Chaque étape en détail : [docs/setup.fr.md](docs/setup.fr.md).
 | **Home Assistant** | Niveau, volume, remplissage, photo, bouton *Lire maintenant* et mise à jour du firmware, par la découverte MQTT. |
 | **Mises à jour** | Installées depuis Home Assistant, même sans Internet sur l'appareil. Le fichier est contrôlé par son empreinte SHA-256, et un firmware qui échoue revient tout seul au précédent. |
 | **Sans surveillance** | Chien de garde, relance de la caméra et journal des 80 derniers événements. L'appareil dit aussi pourquoi il a redémarré. |
-| **Interface** | En français et en anglais, sur ordinateur ou téléphone. |
+| **Interface** | En français et en anglais, sur ordinateur ou téléphone. Un mauvais réglage s'annule en un clic. |
+| **API** | API HTTP qui se décrit elle-même (OpenAPI), prête pour les scripts et les agents IA. |
 
 ## Documentation
 
@@ -52,6 +53,7 @@ Chaque étape en détail : [docs/setup.fr.md](docs/setup.fr.md).
 | Mises à jour, avec ou sans Internet | [Mises à jour](docs/updates.fr.md) |
 | Entités et topics MQTT | [Home Assistant](docs/home-assistant.fr.md) |
 | Piloter l'appareil depuis un script | [API HTTP](docs/api.fr.md) |
+| Laisser un agent IA lire et régler la jauge | [Agents IA](docs/agents.fr.md) |
 | Tests, simulateur, compilation et publication | [Développement](docs/development.fr.md) |
 | Ce qui change à chaque version | [Changelog](CHANGELOG.md) (en anglais) |
 
