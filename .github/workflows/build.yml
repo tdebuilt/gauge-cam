@@ -69,20 +69,23 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           path: site
-      # Home Assistant shows the start of the release body (250 characters) on
-      # the Firmware entity: the tag message and the changes come first, the
-      # generated "Full Changelog" link after them.
+      # The release notes are the tag's section of CHANGELOG.md, then a link to
+      # it. Home Assistant shows their first 250 characters on the Firmware
+      # entity. No section, no release.
       - name: Release notes
         if: github.ref_type == 'tag'
         run: |
           tag="$GITHUB_REF_NAME"
-          git fetch --force origin "refs/tags/$tag:refs/tags/$tag"  # keep the tag annotation
-          prev=$(git describe --tags --abbrev=0 "$tag^" 2>/dev/null || true)
-          {
-            git tag -l --format='%(contents:subject)' "$tag" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+: *//; s/^(.)/\U\1/'
-            echo
-            git log --no-merges --format='- %s' ${prev:+"$prev.."}"$tag" | head -8
-          } > release-notes.md
+          # The section without its leading and trailing blank lines.
+          awk -v h="## $tag" '$0 == h {f=1; next} f && /^## / {exit} f {l[n++] = $0}
+            END {a = 0; b = n - 1; while (a <= b && l[a] !~ /[^ ]/) a++
+                 while (b >= a && l[b] !~ /[^ ]/) b--; for (i = a; i <= b; i++) print l[i]}' \
+            CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no section '## $tag'"; exit 1
+          fi
+          printf '\n[Changelog](https://github.com/%s/blob/main/CHANGELOG.md#%s)\n' \
+            "$GITHUB_REPOSITORY" "$(printf '%s' "$tag" | tr -d '.')" >> release-notes.md
           cat release-notes.md
       - name: Release
         if: github.ref_type == 'tag'
@@ -90,7 +93,6 @@ jobs:
         with:
           files: dist/*.bin
           body_path: release-notes.md
-          generate_release_notes: true
 
   pages:
     needs: firmware

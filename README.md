@@ -162,7 +162,9 @@ compressed into the firmware at build time (`tools/prebuild.py`, 150 KB at most)
 cut down by `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`); `flasher/index.html` the
 flasher page, which uses the same fonts. Design decisions: `docs/plan-refonte-ux.md`. GitHub Actions
 tests and builds every push, publishes the flasher page from `main` and a release for each `v*` tag,
-with the SHA-256 digests the updates rely on. `tools/mirror_release.py` and `tools/push_firmware.sh`:
+with the SHA-256 digests the updates rely on. Before tagging, add the release's section to
+[`CHANGELOG.md`](CHANGELOG.md): it becomes the release notes shown by Home Assistant, and a tag
+without one is not released. `tools/mirror_release.py` and `tools/push_firmware.sh`:
 updates without Internet on the device (see *Updates*); the mock accepts `POST /api/update`.
 
 ## License

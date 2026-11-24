@@ -171,7 +171,9 @@ compressée dans le firmware à la compilation (`tools/prebuild.py`, 150 Ko au p
 réduites par `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`) ; `flasher/index.html` la
 page de flash, qui reprend les mêmes polices. Choix de l'interface : `docs/plan-refonte-ux.md`.
 GitHub Actions teste et compile chaque push, publie la page de flash depuis `main` et une release
-pour chaque tag `v*`, avec les empreintes SHA-256 dont dépendent les mises à jour.
+pour chaque tag `v*`, avec les empreintes SHA-256 dont dépendent les mises à jour. Avant de
+taguer, ajouter la section de la version à [`CHANGELOG.md`](CHANGELOG.md) : elle devient les notes
+de version qu'affiche Home Assistant, et un tag sans section n'est pas publié.
 `tools/mirror_release.py` et `tools/push_firmware.sh` : mises à jour sans Internet sur l'appareil
 (voir *Mises à jour*) ; le simulateur accepte `POST /api/update`.
 
