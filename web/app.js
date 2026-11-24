@@ -1477,6 +1477,7 @@ function renderSystem() {
     [t("s.mqtt"), t(s.mqtt.connected ? "s.connected" : s.mqtt.configured ? "s.disconnected" : "s.notSet")],
     [t("s.photo"), s.photo ? `${s.photo.width} × ${s.photo.height}, ${num(s.photo.bytes / 1024, 0)} ${kb}` : t("s.none")],
     [t("s.memory"), `${num(s.heap_free / 1024, 0)} ${kb} (${t("s.min")} ${num(s.heap_min / 1024, 0)} ${kb}) + ${num(s.psram_free / 1024, 0)} ${kb} PSRAM`],
+    [t("s.source"), !s.update?.source || s.update.source === "github" ? "GitHub" : t("s.mirror", { url: s.update.source })],
   ];
   $("#s-info").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${String(v).replace(/</g, "&lt;")}</dd>`).join("");
   renderUpdate();
