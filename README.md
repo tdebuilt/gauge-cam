@@ -13,10 +13,10 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
 ## Features
 
 - **Reading on the ESP32**, no neural network: the needle centre is the dark hub (tracked from one
-  photo to the next) or a fixed pixel; the needle is the darkest ray between the hub and the
-  graduations; the value is interpolated between neighbouring calibration points, which handles
-  non-linear scales. Coloured marks (red zone) are not mistaken for the needle, and their values
-  are read.
+  photo to the next, a circle fitted to its outline without the needle root) or a fixed pixel; the
+  needle is the darkest ray between the hub and the graduations; the value is interpolated between
+  neighbouring calibration points, which handles non-linear scales. Coloured marks (red zone) are
+  not mistaken for the needle, and their values are read.
 - **Tank volume** for a box, a horizontal or a vertical cylinder, or any other shape through a
   level → litres gauging table; the fill percentage is the volume over the capacity.
 - **Plausibility filter**: each reading takes 3 photos and keeps the median; a level that jumps

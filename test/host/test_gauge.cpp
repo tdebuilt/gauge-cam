@@ -39,6 +39,62 @@ void rotateCase(gauge::Settings& s, gauge::Rect& roi, int w, int h, int degrees)
 }
 
 // Unit checks of JumpFilter; returns the number of failures.
+// Hub smaller than the needle is thick, lighter cap in its middle, blurred:
+// the needle root joined to the hub must not pull the centre towards it.
+// Same proportions as a photo of an Afriso cellar gauge at 640x480.
+int testHubCentre() {
+  constexpr int kW = 240, kH = 200;
+  constexpr float kCx = 120.4f, kCy = 97.7f, kHub = 26, kCap = 11, kNeedle = 3.5f;
+  int failures = 0;
+  float worst = 0;
+  for (int deg = 0; deg < 360; deg += 15) {
+    const float a = deg * 3.14159265f / 180, sa = std::sin(a), ca = std::cos(a);
+    std::vector<float> sharp(kW * kH);
+    for (int y = 0; y < kH; ++y) {
+      for (int x = 0; x < kW; ++x) {
+        const float dx = x - kCx, dy = y - kCy, d = std::hypot(dx, dy);
+        const float along = dx * sa - dy * ca, across = std::fabs(dx * ca + dy * sa);
+        float v = 200;  // dial face
+        if (along > 0 && along < 90 && across < kNeedle) v = 25;  // needle
+        if (d < kHub) v = 30;                                       // hub
+        if (d < kCap) v = 95;                                       // lighter cap
+        sharp[y * kW + x] = v;
+      }
+    }
+    std::vector<uint8_t> px(kW * kH);
+    for (int y = 0; y < kH; ++y) {  // 5x5 box blur, like a soft focus
+      for (int x = 0; x < kW; ++x) {
+        float sum = 0;
+        int n = 0;
+        for (int j = -2; j <= 2; ++j) {
+          for (int i = -2; i <= 2; ++i) {
+            const int xx = x + i, yy = y + j;
+            if (xx < 0 || yy < 0 || xx >= kW || yy >= kH) continue;
+            sum += sharp[yy * kW + xx];
+            ++n;
+          }
+        }
+        px[y * kW + x] = static_cast<uint8_t>(sum / n + 0.5f);
+      }
+    }
+    gauge::Image img{kW, kH, px.data()};
+    float cx = 0, cy = 0;
+    int r = 0;
+    // A click a few pixels off, towards the needle.
+    const bool ok = gauge::detectHub(img, kCx + 6 * sa, kCy - 6 * ca, 0.12f * kH, cx, cy, r);
+    const float err = std::hypot(cx - kCx, cy - kCy);
+    worst = std::max(worst, err);
+    if (!ok || err > 1.f || std::abs(r - kHub) > 2) {
+      std::printf("FAIL hub centre, needle at %d deg: (%.1f, %.1f) r %d, "
+                  "expected (%.1f, %.1f) r %.0f\n", deg, cx, cy, r, kCx, kCy, kHub);
+      ++failures;
+    }
+  }
+  std::printf("%s hub centre beside a thick needle (worst %.2f px)\n", failures ? "FAIL" : "OK  ",
+              worst);
+  return failures;
+}
+
 int testJumpFilter() {
   using V = gauge::JumpFilter::Verdict;
   struct Step { float level; V expected; };
@@ -192,6 +248,7 @@ int main(int argc, char** argv) {
     }
   }
   std::printf("%d/%d cases within tolerance\n", total - failures, total);
+  failures += testHubCentre();
   failures += testJumpFilter();
   failures += testTank();
   return failures ? 1 : 0;

@@ -94,6 +94,103 @@ class BoxMean {
   std::vector<uint32_t> sums_;
 };
 
+// Bilinear brightness at a sub-pixel position, NaN outside the image.
+float sample(const Image& img, float x, float y) {
+  if (x < 0 || y < 0 || x > img.width - 1 || y > img.height - 1) return kNaN;
+  const int x0 = std::min(static_cast<int>(x), img.width - 2);
+  const int y0 = std::min(static_cast<int>(y), img.height - 2);
+  const float fx = x - x0, fy = y - y0;
+  const float top = img.at(x0, y0) * (1 - fx) + img.at(x0 + 1, y0) * fx;
+  const float bottom = img.at(x0, y0 + 1) * (1 - fx) + img.at(x0 + 1, y0 + 1) * fx;
+  return top * (1 - fy) + bottom * fy;
+}
+
+struct Edge {
+  float x, y;
+};
+
+// Algebraic least-squares circle (Kasa) through the points.
+bool fitCircle(const std::vector<Edge>& pts, float& cx, float& cy, float& r) {
+  if (pts.size() < 3) return false;
+  double mx = 0, my = 0;
+  for (const Edge& p : pts) {
+    mx += p.x;
+    my += p.y;
+  }
+  mx /= pts.size();
+  my /= pts.size();
+  double suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suvv = 0, svuu = 0;
+  for (const Edge& p : pts) {
+    const double u = p.x - mx, v = p.y - my;
+    suu += u * u;
+    svv += v * v;
+    suv += u * v;
+    suuu += u * u * u;
+    svvv += v * v * v;
+    suvv += u * v * v;
+    svuu += v * u * u;
+  }
+  const double det = suu * svv - suv * suv;
+  if (std::fabs(det) < 1e-9) return false;
+  const double b1 = 0.5 * (suuu + suvv), b2 = 0.5 * (svvv + svuu);
+  const double uc = (b1 * svv - b2 * suv) / det, vc = (b2 * suu - b1 * suv) / det;
+  cx = static_cast<float>(mx + uc);
+  cy = static_cast<float>(my + vc);
+  r = static_cast<float>(std::sqrt(uc * uc + vc * vc + (suu + svv) / pts.size()));
+  return std::isfinite(r);
+}
+
+// Outline of the dark hub seen from (cx, cy): on each ray, the strongest
+// dark-to-light step between r_min and r_max. A dark needle joined to the hub
+// gives no such step along it and a far one beside it: those rays drop out of
+// the circle fit, so the centre is not pulled towards the needle.
+bool fitHubOutline(const Image& img, float cx, float cy, float r_min, float r_max,
+                   float& out_x, float& out_y, float& out_r) {
+  constexpr int kRays = 120;
+  std::vector<Edge> edges;
+  std::vector<float> steps;
+  for (int i = 0; i < kRays; ++i) {
+    const float a = 2 * kPi * i / kRays;
+    const float dx = std::cos(a), dy = std::sin(a);
+    auto at = [&](float r) { return sample(img, cx + r * dx, cy + r * dy); };
+    float best = 0, best_r = -1;
+    for (float r = r_min; r <= r_max; r += 0.5f) {
+      const float step = at(r + 1) + at(r + 2) - at(r - 1) - at(r - 2);
+      if (step > best) {
+        best = step;
+        best_r = r;
+      }
+    }
+    if (best_r > 0) {
+      edges.push_back({cx + best_r * dx, cy + best_r * dy});
+      steps.push_back(best);
+    }
+  }
+  if (edges.size() < kRays / 3) return false;
+  // Weak steps are rays that never left the dark: along the needle.
+  const float weak = 0.4f * medianOf(steps);
+  std::vector<Edge> kept;
+  for (size_t i = 0; i < edges.size(); ++i) {
+    if (steps[i] >= weak) kept.push_back(edges[i]);
+  }
+  // Fit, then drop the points off the circle (rays beside the needle) and refit.
+  for (int pass = 0; pass < 3; ++pass) {
+    if (kept.size() < kRays / 3 || !fitCircle(kept, out_x, out_y, out_r)) return false;
+    std::vector<float> residuals;
+    for (const Edge& p : kept) {
+      residuals.push_back(std::fabs(std::hypot(p.x - out_x, p.y - out_y) - out_r));
+    }
+    const float limit = std::max(1.f, 2.5f * medianOf(residuals));
+    std::vector<Edge> inliers;
+    for (size_t i = 0; i < kept.size(); ++i) {
+      if (residuals[i] <= limit) inliers.push_back(kept[i]);
+    }
+    if (inliers.size() == kept.size()) break;
+    kept.swap(inliers);
+  }
+  return kept.size() >= kRays / 3 && out_r >= r_min * 0.8f && out_r <= r_max;
+}
+
 }  // namespace
 
 float clockAngle(float cx, float cy, float x, float y) {
@@ -202,6 +299,18 @@ bool detectHub(const Image& img, float hint_x, float hint_y,
     cy = static_cast<float>(sy / count);
     const int refined = ringRadius(img, cx, cy, threshold, max_r);
     if (refined) radius = refined;
+  }
+  // The dark pixels include the root of the needle, which pulls that centroid
+  // towards it: when the hub outline can be fitted, it gives the centre. Twice,
+  // the second pass casting its rays from the first fitted centre.
+  for (int pass = 0; pass < 2; ++pass) {
+    float fx = 0, fy = 0, fr = 0;
+    if (!fitHubOutline(img, cx, cy, std::max(2.f, 0.5f * radius), 2.f * radius + 2, fx, fy, fr)) {
+      break;
+    }
+    cx = fx;
+    cy = fy;
+    radius = static_cast<int>(std::lround(fr));
   }
   return radius >= std::max(3, static_cast<int>(min_dim * 0.015f));
 }

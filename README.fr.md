@@ -13,10 +13,11 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
 ## Ce qu'il fait
 
 - **Lecture sur l'ESP32**, sans réseau de neurones : le centre de l'aiguille est le moyeu noir
-  (suivi d'une photo à l'autre) ou un pixel fixe ; l'aiguille est le rayon le plus sombre entre le
-  moyeu et les graduations ; la valeur est interpolée entre les points de calibration voisins, ce
-  qui gère les échelles non linéaires (un cadran Afriso n'a aucune graduation entre 0 et 40 cm).
-  Les marques colorées (zone rouge) ne sont pas prises pour l'aiguille, et leurs valeurs sont lues.
+  (suivi d'une photo à l'autre, cercle ajusté sur son contour sans le pied de l'aiguille) ou un
+  pixel fixe ; l'aiguille est le rayon le plus sombre entre le moyeu et les graduations ; la valeur
+  est interpolée entre les points de calibration voisins, ce qui gère les échelles non linéaires
+  (un cadran Afriso n'a aucune graduation entre 0 et 40 cm). Les marques colorées (zone rouge) ne
+  sont pas prises pour l'aiguille, et leurs valeurs sont lues.
 - **Volume de la cuve** pour un parallélépipède, un cylindre couché ou debout, ou toute autre forme
   par une table de jaugeage niveau → litres ; le remplissage est le volume rapporté à la capacité.
 - **Filtre de plausibilité** : chaque lecture prend 3 photos et garde la médiane ; un niveau qui
