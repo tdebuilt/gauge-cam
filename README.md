@@ -2,170 +2,58 @@
 
 [Français](README.fr.md)
 
-ESP32-CAM firmware that reads a needle gauge, such as an oil tank level indicator, and publishes
-the level, volume and fill percentage to Home Assistant over MQTT. Everything is set up from the
-browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
+Gauge Cam turns an ESP32-CAM into a reader for a needle gauge, typically the level gauge of a
+heating oil tank. It sends the level, the volume and the fill percentage to Home Assistant.
 
-> Status: algorithm checked on a photo of a real Afriso dial; repository tests, web interface and
-> Home Assistant integration run on a computer with a drawn tank gauge (`tools/oil_dial.py`);
-> **not yet tried on a real ESP32-CAM**.
+Everything runs on the device: no cloud and no AI model. You set it up from your browser.
+
+![The Level page: 1,550 L of 2,500 L, with the last photo and the detected needle](docs/img/en-reading.png)
+
+**Status**: reading a real Afriso tank gauge every hour since November 2026.
+
+## What you need
+
+- An **AI-Thinker ESP32-CAM** with its **ESP32-CAM-MB** USB board, about €10.
+- A steady **5 V, 1 A** power supply.
+- An **MQTT broker**, such as the Mosquitto add-on of Home Assistant.
+- Chrome or Edge, to flash the device.
+
+## Getting started
+
+1. **Flash.** Open the [flasher page](https://tdebuilt.github.io/gauge-cam/), plug in the board and
+   click *Install*.
+2. **Wi-Fi.** Enter your network when the page asks, then click *Visit device*.
+3. **Set up.** Mount the camera facing the dial. The device then guides you through six steps:
+   photo, framing, graduations, check, tank, Home Assistant.
+4. **Done.** Home Assistant finds the device on its own.
+
+Each step in detail: [docs/setup.md](docs/setup.md).
+
+![The Dial tab: graduations clicked on the photo, from 0 to 150 cm](docs/img/en-dial.png)
 
 ## Features
 
-- **Reading on the ESP32**, no neural network: the needle centre is the dark hub (tracked from one
-  photo to the next, a circle fitted to its outline without the needle root) or a fixed pixel; the
-  needle is the darkest ray between the hub and the graduations; the value is interpolated between
-  neighbouring calibration points, which handles non-linear scales. Coloured marks (red zone) are
-  not mistaken for the needle, and their values are read.
-- **Tank volume** for a box, a horizontal or a vertical cylinder, or any other shape through a
-  level → litres gauging table; the fill percentage is the volume over the capacity.
-- **Plausibility filter**: each reading takes 3 photos and keeps the median; a level that jumps
-  further than 5 cm (adjustable) from the last one is checked again 2 minutes later and accepted
-  only once the next 2 readings agree, so a refill gets through and a stray reflection does not.
-  The last 4 refused readings stay visible with their photo in the Level tab.
-- **Flash LED** lit before each photo; a reading whose needle contrast is too low (dark photo) is
-  rejected and the last good value is kept. Exposure and gain can be fixed so that every photo is
-  the same.
-- **Capture settings next to the photo**, as in AI-on-the-edge: LED intensity, rotation (0, 90,
-  180, 270°, for a camera mounted sideways), flips, resolution, brightness and contrast. Each change
-  takes a new photo without saving anything; the frame, centre and graduations follow the rotation.
-  The photo is rotated on the ESP32, so Home Assistant gets it upright too.
-- **Home Assistant MQTT discovery** (can be turned off, entities are then removed): level, volume,
-  fill, time of the last reading, photo, "read now" button, firmware update, and as diagnostics the
-  reading status, needle angle, contrast, Wi-Fi signal, last start and its cause, free memory.
-  Announced again whenever Home Assistant restarts. Level, volume and fill turn unavailable after
-  three missed readings instead of showing an old value.
-- **Updates from Home Assistant** or from Settings → System: the device looks for a new release every
-  day, on GitHub over HTTPS (certificates checked) or, without Internet, on a local mirror, and checks
-  the file's SHA-256 digest before installing it. A new firmware that crashes, or cannot join Wi-Fi
-  within 5 minutes, is replaced by the previous one at the next restart.
-- **Runs unattended**: a task watchdog restarts a stuck program; the camera is started again, then
-  the device restarts (at most 3 times since power on) when it fails; the device also restarts after
-  1 hour without Wi-Fi, or without the MQTT server it had reached. Settings → System keeps a log of the
-  last 80 events and shows why the device last restarted (crash, watchdog, brown-out…).
-- **Clock** from an NTP server (`pool.ntp.org` by default, or the gateway): readings, refused
-  readings and the log are dated.
-- **Web interface** in French and English (more languages: `web/i18n.js`), firmware update,
-  configuration backup and restore. Passwords are never sent back, and the stored MQTT password is
-  only used with the server it was typed for: changing the server, port or user needs it again.
-- **Browser flashing** (Chrome or Edge) with Wi-Fi set-up right after, over USB (Improv). As long as
-  Wi-Fi has never worked, the device also opens an open `gauge-cam-xxxxxx` access point with a
-  captive portal. Once Wi-Fi works, that fallback access point only opens (after 30 s without
-  Wi-Fi) if it was given a password; otherwise Wi-Fi is changed over USB from the flasher page.
-
-## Hardware
-
-- AI-Thinker ESP32-CAM (OV2640, 4 MB PSRAM) and its **ESP32-CAM-MB** USB board.
-- Stable 5 V supply (1 A): brown-outs break the camera or Wi-Fi.
-- Camera fixed **facing** the dial; the LED is enough in a cellar.
-
-Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` and
-`release-assets.githubusercontent.com`; NTP (UDP 123) to the chosen time server. Without Internet: the
-MQTT server and, for updates, the local mirror (see *Updates*).
-
-## Installation
-
-1. Open the [flasher page](https://tdebuilt.github.io/gauge-cam/), plug in the ESP32-CAM-MB and
-   click *Install*. If it cannot connect, put the board in download mode: hold **IO0** on the MB
-   board, briefly press **RST** on the ESP32-CAM itself (the MB board's RST does not always work),
-   release **IO0**, then click *Install* again.
-2. Set up Wi-Fi when offered, then *Visit device*: the device opens its **set-up**, six steps that
-   can each wait (*Later*):
-   - *Photo* (light and rotation);
-   - *Framing* (drag the corners around the dial; the needle centre is found by itself, click to
-     correct it);
-   - *Scale* (pick the gauge model: tank gauge in cm with a mark every 10 cm up to the end of its
-     scale, 0–100 %, or any other dial with typed values; then click the graduations in order: the
-     next value comes by itself, *No mark at…* skips one the dial lacks; a click between two
-     graduations adds a point and a bubble asks for its value; a click on a point corrects or
-     deletes it; zoom with the wheel, two fingers or +/− for precise placement);
-   - *Check* (a test reading: is the value right?);
-   - *Tank* (shape, then the capacity on its plate and the height, which defaults to the end of the
-     scale; or the inner dimensions, or a gauging table; *Not a tank* for any other dial);
-   - *Home Assistant* (device name, MQTT server, user and password; *Test and finish* only saves a
-     connection that works). Home Assistant builds the entity ids from the name at the first
-     connection: renaming the device later does not change them.
-3. Until every step is done, the Level tab lists what is missing, with a *Do it* button for each.
-   The same settings stay in the **Dial** and **Settings** tabs.
-
-## Updates
-
-In every case the device checks the file against the SHA-256 digest published with the release before
-installing it, and goes back to the previous firmware if the new one cannot join Wi-Fi.
-
-| The device… | How | In Home Assistant |
-|---|---|---|
-| has Internet | nothing to set: it asks GitHub every day (HTTPS, so it needs the time, hence NTP) | *Firmware* entity: "Install" |
-| has no Internet | a **local mirror** of the releases, then its address in Settings → Network and MQTT → *Update source* | *Firmware* entity: "Install", as above |
-| has no Internet, no mirror | **on-demand upload** from a computer of the network | nothing: the version shows once installed |
-
-**Local mirror.** A machine of the network with Internet access (server, NAS, Raspberry Pi) runs
-`tools/mirror_release.py DIR` every day (Python, standard library) and serves `DIR` with any static web
-server. The tool downloads the latest release, checks it against the digest GitHub publishes, then
-writes `DIR/latest.json` (same fields as GitHub's API) and `DIR/vX.Y.Z/gauge-cam.bin`; it keeps the
-last 3 releases. Example cron entry:
-
-```
-15 4 * * *  /opt/gauge-cam/tools/mirror_release.py /srv/www/gauge-cam
-```
-
-Then, on the device: *Update source* = `http://SERVER-ADDRESS:PORT/gauge-cam`. The mirror is read over
-plain HTTP on the local network: without a clock, the device could not check a certificate. The digest
-published by the mirror proves the file is intact, and the mirror only publishes a file it checked
-against GitHub. The firewall must let the device reach that port, and only that one.
-
-**On-demand upload.** `tools/push_firmware.sh http://DEVICE [vX.Y.Z]` downloads `gauge-cam.bin`,
-checks its digest, uploads it to `POST /api/update` and waits for the new version. It asks for the
-interface password (or reads `GAUGECAM_PASSWORD`). Without a mirror, turn off the daily check
-(Settings → Network and MQTT), which would fail every day.
-
-**By hand.** Settings → System, the `gauge-cam.bin` file of the
-[latest release](https://github.com/tdebuilt/gauge-cam/releases/latest): no digest check in that case,
-the firmware only checks that the image is valid.
-
-## MQTT
-
-| Topic | Content |
+| | |
 |---|---|
-| `gauge-cam/<id>/state` | JSON: `level`, `volume_l`, `percent`, `angle`, `contrast`, `time`, sent after each successful reading (retained) |
-| `gauge-cam/<id>/diag` | JSON: `rssi`, `boot`, `reset_reason`, `heap_free`, `version` (retained) |
-| `gauge-cam/<id>/update` | state of the Home Assistant firmware update entity (retained) |
-| `gauge-cam/<id>/status` | `ok` or the error of the last reading (retained) |
-| `gauge-cam/<id>/image` | last JPEG photo (retained) |
-| `gauge-cam/<id>/availability` | `online` / `offline` |
-| `gauge-cam/<id>/cmd` | `read` triggers a reading, `install` installs the latest release |
-| `homeassistant/status` | `online` (Home Assistant restarted) announces the entities again |
+| **Reading** | The device finds the needle on the photo. Uneven scales work: points are interpolated between their neighbours. |
+| **Tank** | Volume for a box tank, a horizontal or upright cylinder, or any shape through a gauging table. |
+| **Reliability** | Each reading keeps the median of 3 photos. A sudden jump has to be confirmed, so a reflection is ignored and a refill gets through. |
+| **Home Assistant** | Level, volume, fill level, photo, *Read now* button and firmware update, through MQTT discovery. |
+| **Updates** | Installed from Home Assistant, even without Internet on the device. The file is checked against its SHA-256 digest, and a firmware that fails rolls back on its own. |
+| **Unattended** | A watchdog, camera restarts and a log of the last 80 events. The device also explains why it restarted. |
+| **Interface** | In English and French, on a computer or a phone. |
 
-## HTTP API
+## Documentation
 
-`GET /api/status`, `GET|POST /api/config`, `POST /api/capture` (optional body: unsaved capture
-settings), `POST /api/read`,
-`POST /api/test` (reads the last photo with unsaved settings), `GET /api/photo.jpg`,
-`GET /api/failures` and `GET /api/failure.jpg?id=` (refused readings), `GET /api/log`,
-`POST /api/update/check` and `POST /api/update/install` (GitHub release),
-`POST /api/mqtt/test` (one connection with unsaved MQTT settings), `GET /api/wifi/scan`,
-`POST /api/restart`, `POST /api/update` (firmware). The `setup` key of the configuration holds the
-set-up steps (`photo`, `frame`, `grad`, `check`, `tank`, `ha`) marked `done` or `later`; `null`
-puts a step back to do. `update_url` is the update source (empty = GitHub). Passwords are never sent
-back. An interface password (user `admin`) can be set.
-
-## Development
-
-```sh
-test/host/run.sh                # algorithm tests on a computer (g++, Python + Pillow)
-python3 tools/mock_device.py    # interface on http://127.0.0.1:8080/ without hardware
-pio run && tools/make_factory.sh    # firmware and images in dist/
-```
-
-`lib/gauge` is the algorithm in portable C++; `src/` the Arduino firmware; `web/` the interface,
-compressed into the firmware at build time (`tools/prebuild.py`, 150 KB at most), with two fonts
-cut down by `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`); `flasher/index.html` the
-flasher page, which uses the same fonts. Design decisions: `docs/plan-refonte-ux.md`. GitHub Actions
-tests and builds every push, publishes the flasher page from `main` and a release for each `v*` tag,
-with the SHA-256 digests the updates rely on. Before tagging, add the release's section to
-[`CHANGELOG.md`](CHANGELOG.md): it becomes the release notes shown by Home Assistant, and a tag
-without one is not released. `tools/mirror_release.py` and `tools/push_firmware.sh`:
-updates without Internet on the device (see *Updates*); the mock accepts `POST /api/update`.
+| Topic | Page |
+|---|---|
+| Hardware, flashing and the six set-up steps | [Setup](docs/setup.md) |
+| How a reading is made and checked | [How it works](docs/how-it-works.md) |
+| Updates with or without Internet | [Updates](docs/updates.md) |
+| Entities and MQTT topics | [Home Assistant](docs/home-assistant.md) |
+| Driving the device from a script | [HTTP API](docs/api.md) |
+| Tests, simulator, building and releasing | [Development](docs/development.md) |
+| What changed in each version | [Changelog](CHANGELOG.md) |
 
 ## License
 
