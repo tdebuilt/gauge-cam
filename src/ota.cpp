@@ -141,7 +141,23 @@ void check() {
   }
   latest = doc["tag_name"] | "";
   release_url = doc["html_url"] | "";
-  summary = String(doc["body"] | "").substring(0, 250);
+  // Home Assistant keeps 255 characters of the summary: cut at a line end, so
+  // that neither a line nor a multi-byte character is shown half.
+  summary = doc["body"] | "";
+  summary.replace("\r", "");
+  if (summary.length() > 250) {
+    const int cut = summary.lastIndexOf('\n', 250);
+    summary = summary.substring(0, cut > 0 ? cut : 250);
+    if (cut <= 0) {  // a single long line: back off to a character boundary
+      while (summary.length() && (static_cast<uint8_t>(summary[summary.length() - 1]) & 0xC0) == 0x80) {
+        summary.remove(summary.length() - 1);
+      }
+      if (summary.length() && static_cast<uint8_t>(summary[summary.length() - 1]) >= 0xC0) {
+        summary.remove(summary.length() - 1);
+      }
+    }
+  }
+  summary.trim();
   asset_url = "";
   asset_size = 0;
   asset_sha256 = "";
