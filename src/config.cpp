@@ -70,6 +70,7 @@ void Config::toJson(JsonObject out, bool with_secrets) const {
   out["ha_discovery"] = ha_discovery;
   out["ntp_server"] = ntp_server;
   out["update_check"] = update_check;
+  out["update_url"] = update_url;
   if (with_secrets) {
     out["wifi_verified"] = wifi_verified;  // device state, stored but not editable
     out["ui_password"] = ui_password;
@@ -146,6 +147,9 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   take(in, "ha_discovery", next.ha_discovery);
   takeString(in, "ntp_server", next.ntp_server);
   take(in, "update_check", next.update_check);
+  takeString(in, "update_url", next.update_url);
+  next.update_url.trim();
+  while (next.update_url.endsWith("/")) next.update_url.remove(next.update_url.length() - 1);
   takeSecret(in, "ui_password", next.ui_password);
   takeSecret(in, "wifi_pass", next.wifi_pass);
   takeSecret(in, "mqtt_pass", next.mqtt_pass);
@@ -239,6 +243,10 @@ bool Config::fromJson(JsonObjectConst in, String& error) {
   }
   if (next.lang != "fr" && next.lang != "en") {
     error = "lang must be fr or en";
+  } else if (next.update_url.length() &&
+             ((!next.update_url.startsWith("http://") && !next.update_url.startsWith("https://")) ||
+              next.update_url.length() > 200)) {
+    error = "update_url must be empty or an http:// or https:// address";
   } else if (next.pivot_mode != "hub" && next.pivot_mode != "fixed") {
     error = "pivot_mode must be hub or fixed";
   } else if (next.framesize != "QVGA" && next.framesize != "VGA" && next.framesize != "SVGA") {

@@ -42,7 +42,7 @@ SECRETS = ("wifi_pass", "mqtt_pass", "ui_password", "ap_password")
 CONFIG = {
     "name": "Gauge Cam", "lang": "fr", "wifi_ssid": "maison", "mqtt_host": "", "mqtt_port": 1883,
     "mqtt_user": "", "mqtt_prefix": "gauge-cam", "discovery_prefix": "homeassistant",
-    "ha_discovery": True, "ntp_server": "pool.ntp.org", "update_check": True,
+    "ha_discovery": True, "ntp_server": "pool.ntp.org", "update_check": True, "update_url": "",
     "wifi_pass": "secret", "mqtt_pass": "", "ui_password": "", "ap_password": "",
     "samples": 3, "max_jump": 5,
     "interval_s": 3600, "framesize": "VGA", "vflip": False, "hmirror": False, "rotation": 0,

@@ -35,9 +35,10 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
   reading status, needle angle, contrast, Wi-Fi signal, last start and its cause, free memory.
   Announced again whenever Home Assistant restarts. Level, volume and fill turn unavailable after
   three missed readings instead of showing an old value.
-- **Updates from Home Assistant** or from Settings → System: the device looks for a new GitHub release
-  every day and installs it over HTTPS (certificates checked). A new firmware that crashes, or cannot
-  join Wi-Fi within 5 minutes, is replaced by the previous one at the next restart.
+- **Updates from Home Assistant** or from Settings → System: the device looks for a new release every
+  day, on GitHub over HTTPS (certificates checked) or, without Internet, on a local mirror, and checks
+  the file's SHA-256 digest before installing it. A new firmware that crashes, or cannot join Wi-Fi
+  within 5 minutes, is replaced by the previous one at the next restart.
 - **Runs unattended**: a task watchdog restarts a stuck program; the camera is started again, then
   the device restarts (at most 3 times since power on) when it fails; the device also restarts after
   1 hour without Wi-Fi, or without the MQTT server it had reached. Settings → System keeps a log of the
@@ -59,7 +60,8 @@ browser, in the spirit of AI-on-the-edge: flashing, Wi-Fi, dial, tank.
 - Camera fixed **facing** the dial; the LED is enough in a cellar.
 
 Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` and
-`release-assets.githubusercontent.com`; NTP (UDP 123) to the chosen time server.
+`release-assets.githubusercontent.com`; NTP (UDP 123) to the chosen time server. Without Internet: the
+MQTT server and, for updates, the local mirror (see *Updates*).
 
 ## Installation
 
@@ -86,16 +88,40 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 3. Until every step is done, the Level tab lists what is missing, with a *Do it* button for each.
    The same settings stay in the **Dial** and **Settings** tabs.
 
-Later updates: the *Firmware* entity in Home Assistant, Settings → System (*Check for an update*), or
-by hand with the `gauge-cam.bin` file of the
-[latest release](https://github.com/tdebuilt/gauge-cam/releases/latest). Before installing, the
-device checks the file against the SHA-256 digest GitHub publishes with the release.
+## Updates
 
-**Without Internet on the device** (an IoT network closed to the outside), a computer of the same
-network installs the release: `tools/push_firmware.sh http://DEVICE [vX.Y.Z]` downloads
-`gauge-cam.bin`, checks its SHA-256 against the digest GitHub publishes, uploads it to
-`POST /api/update` and waits for the new version. It asks for the interface password (or reads
-`GAUGECAM_PASSWORD`). Turn off the daily check (Settings → Network and MQTT), which would fail every day.
+In every case the device checks the file against the SHA-256 digest published with the release before
+installing it, and goes back to the previous firmware if the new one cannot join Wi-Fi.
+
+| The device… | How | In Home Assistant |
+|---|---|---|
+| has Internet | nothing to set: it asks GitHub every day (HTTPS, so it needs the time, hence NTP) | *Firmware* entity: "Install" |
+| has no Internet | a **local mirror** of the releases, then its address in Settings → Network and MQTT → *Update source* | *Firmware* entity: "Install", as above |
+| has no Internet, no mirror | **on-demand upload** from a computer of the network | nothing: the version shows once installed |
+
+**Local mirror.** A machine of the network with Internet access (server, NAS, Raspberry Pi) runs
+`tools/mirror_release.py DIR` every day (Python, standard library) and serves `DIR` with any static web
+server. The tool downloads the latest release, checks it against the digest GitHub publishes, then
+writes `DIR/latest.json` (same fields as GitHub's API) and `DIR/vX.Y.Z/gauge-cam.bin`; it keeps the
+last 3 releases. Example cron entry:
+
+```
+15 4 * * *  /opt/gauge-cam/tools/mirror_release.py /srv/www/gauge-cam
+```
+
+Then, on the device: *Update source* = `http://SERVER-ADDRESS:PORT/gauge-cam`. The mirror is read over
+plain HTTP on the local network: without a clock, the device could not check a certificate. The digest
+published by the mirror proves the file is intact, and the mirror only publishes a file it checked
+against GitHub. The firewall must let the device reach that port, and only that one.
+
+**On-demand upload.** `tools/push_firmware.sh http://DEVICE [vX.Y.Z]` downloads `gauge-cam.bin`,
+checks its digest, uploads it to `POST /api/update` and waits for the new version. It asks for the
+interface password (or reads `GAUGECAM_PASSWORD`). Without a mirror, turn off the daily check
+(Settings → Network and MQTT), which would fail every day.
+
+**By hand.** Settings → System, the `gauge-cam.bin` file of the
+[latest release](https://github.com/tdebuilt/gauge-cam/releases/latest): no digest check in that case,
+the firmware only checks that the image is valid.
 
 ## MQTT
 
@@ -120,7 +146,8 @@ settings), `POST /api/read`,
 `POST /api/mqtt/test` (one connection with unsaved MQTT settings), `GET /api/wifi/scan`,
 `POST /api/restart`, `POST /api/update` (firmware). The `setup` key of the configuration holds the
 set-up steps (`photo`, `frame`, `grad`, `check`, `tank`, `ha`) marked `done` or `later`; `null`
-puts a step back to do. Passwords are never sent back. An interface password (user `admin`) can be set.
+puts a step back to do. `update_url` is the update source (empty = GitHub). Passwords are never sent
+back. An interface password (user `admin`) can be set.
 
 ## Development
 
@@ -134,7 +161,9 @@ pio run && tools/make_factory.sh    # firmware and images in dist/
 compressed into the firmware at build time (`tools/prebuild.py`, 150 KB at most), with two fonts
 cut down by `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`); `flasher/index.html` the
 flasher page, which uses the same fonts. Design decisions: `docs/plan-refonte-ux.md`. GitHub Actions
-tests and builds every push, publishes the flasher page from `main` and a release for each `v*` tag.
+tests and builds every push, publishes the flasher page from `main` and a release for each `v*` tag,
+with the SHA-256 digests the updates rely on. `tools/mirror_release.py` and `tools/push_firmware.sh`:
+updates without Internet on the device (see *Updates*); the mock accepts `POST /api/update`.
 
 ## License
 

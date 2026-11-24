@@ -54,6 +54,42 @@ void secure(WiFiClientSecure& tls) {
   tls.setCACertBundle(x509_crt_bundle_start);
 }
 
+bool fromMirror() { return config.update_url.length() > 0; }
+
+// Where the release list comes from: GitHub, or latest.json on a local mirror.
+String releaseUrl() {
+  return fromMirror() ? config.update_url + "/latest.json"
+                      : String("https://api.github.com/repos/" GAUGECAM_REPO "/releases/latest");
+}
+
+// A mirror may give the file relative to its own address.
+String absoluteUrl(const String& url) {
+  if (url.startsWith("http://") || url.startsWith("https://") || !fromMirror()) return url;
+  return config.update_url + "/" + url;
+}
+
+// Plain HTTP for a mirror on the local network, HTTPS with the root
+// certificates otherwise (which needs the clock: NTP).
+class Connection {
+ public:
+  bool begin(HTTPClient& http, const String& url, String& error) {
+    if (url.startsWith("https://")) {
+      if (!enoughMemoryFor(error)) return false;
+      secure(tls_);
+      if (http.begin(tls_, url)) return true;
+    } else if (url.startsWith("http://")) {
+      if (http.begin(plain_, url)) return true;
+    }
+    error = "cannot reach " + url;
+    return false;
+  }
+
+ private:
+  static bool enoughMemoryFor(String& error);
+  WiFiClientSecure tls_;
+  WiFiClient plain_;
+};
+
 // mbedTLS takes its buffers (about 40 KB, one block of 17 KB) from the
 // internal RAM, not from the PSRAM.
 bool enoughMemory(String& error) {
@@ -63,21 +99,19 @@ bool enoughMemory(String& error) {
   return false;
 }
 
+bool Connection::enoughMemoryFor(String& error) { return enoughMemory(error); }
+
 void check() {
   checked_ms = millis();
-  if (!enoughMemory(check_error)) return;
-  WiFiClientSecure tls;
-  secure(tls);
+  Connection conn;
   HTTPClient http;
   http.useHTTP10(true);  // no chunked encoding: the body streams straight into the parser
   http.setUserAgent("gauge-cam/" GAUGECAM_VERSION);
   http.setTimeout(20000);
-  if (!http.begin(tls, "https://api.github.com/repos/" GAUGECAM_REPO "/releases/latest")) {
-    check_error = "cannot reach GitHub";
-    return;
-  }
+  if (!conn.begin(http, releaseUrl(), check_error)) return;
   http.addHeader("Accept", "application/vnd.github+json");
   const int code = http.GET();
+  const char* source = fromMirror() ? "the update mirror" : "GitHub";
   if (code == 404) {  // no release published yet
     latest = asset_url = asset_sha256 = release_url = summary = "";
     check_error = "";
@@ -85,7 +119,8 @@ void check() {
     return;
   }
   if (code != 200) {
-    check_error = code < 0 ? "GitHub unreachable: " + HTTPClient::errorToString(code) : "GitHub answered " + String(code);
+    check_error = code < 0 ? String(source) + " unreachable: " + HTTPClient::errorToString(code)
+                           : String(source) + " answered " + String(code);
     http.end();
     return;
   }
@@ -101,7 +136,7 @@ void check() {
   const DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
   http.end();
   if (err) {
-    check_error = String("unreadable answer from GitHub: ") + err.c_str();
+    check_error = String("unreadable answer from ") + source + ": " + err.c_str();
     return;
   }
   latest = doc["tag_name"] | "";
@@ -112,7 +147,7 @@ void check() {
   asset_sha256 = "";
   for (JsonObjectConst a : doc["assets"].as<JsonArrayConst>()) {
     if (strcmp(a["name"] | "", kAsset) == 0) {
-      asset_url = a["browser_download_url"] | "";
+      asset_url = absoluteUrl(a["browser_download_url"] | "");
       asset_size = a["size"] | 0;
       const String digest = a["digest"] | "";
       if (digest.startsWith("sha256:") && digest.length() == 7 + 64) {
@@ -144,25 +179,20 @@ bool install() {
     install_error = "no newer release to install";
     return false;
   }
-  // Without the digest GitHub publishes, the file could not be checked.
+  // Without the published digest, the file could not be checked.
   if (asset_sha256.length() != 64) {
     install_error = "the release gives no SHA-256 digest for " + String(kAsset);
     return false;
   }
-  if (!enoughMemory(install_error)) return false;
-  logMsg("Installing %s", latest.c_str());
-  WiFiClientSecure tls;
-  secure(tls);
+  logMsg("Installing %s from %s", latest.c_str(), asset_url.c_str());
+  Connection conn;
   HTTPClient http;
   http.useHTTP10(true);
   http.setUserAgent("gauge-cam/" GAUGECAM_VERSION);
   http.setTimeout(20000);
-  // The asset URL redirects to GitHub's download host, checked the same way.
+  // GitHub's asset URL redirects to its download host, checked the same way.
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  if (!http.begin(tls, asset_url)) {
-    install_error = "cannot reach GitHub";
-    return false;
-  }
+  if (!conn.begin(http, asset_url, install_error)) return false;
   const int code = http.GET();
   if (code != 200) {
     install_error = "download failed: " + (code < 0 ? HTTPClient::errorToString(code) : String(code));
@@ -315,6 +345,7 @@ void otaToJson(JsonObject out) {
   if (progress >= 0) out["progress"] = progress;
   out["release_url"] = release_url;
   out["pending_verify"] = pending_verify;
+  out["source"] = fromMirror() ? config.update_url : String("github");
 }
 
 void otaToHomeAssistant(JsonObject out) {

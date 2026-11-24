@@ -35,7 +35,10 @@ struct Config {
   String discovery_prefix = "homeassistant";
   bool ha_discovery = true;
   String ntp_server = "pool.ntp.org";  // empty: no clock (no timestamps)
-  bool update_check = true;  // daily look for a new GitHub release
+  bool update_check = true;  // daily look for a new release
+  // Where releases are looked for: empty = GitHub; otherwise the address of a
+  // local mirror serving latest.json (see README), for devices without Internet.
+  String update_url;
 
   // Capture
   uint32_t interval_s = 3600;

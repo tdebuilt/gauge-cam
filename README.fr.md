@@ -39,8 +39,9 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
   Assistant. Niveau, volume et remplissage passent à « indisponible » après trois lectures
   manquées, au lieu de garder une vieille valeur.
 - **Mise à jour depuis Home Assistant** ou Réglages → Système : l'appareil cherche chaque jour une
-  nouvelle version sur GitHub et l'installe en HTTPS (certificats vérifiés). Un nouveau firmware qui
-  plante, ou qui ne rejoint pas le Wi-Fi en 5 minutes, est remplacé par le précédent au redémarrage.
+  nouvelle version, sur GitHub en HTTPS (certificats vérifiés) ou, sans Internet, sur un miroir local,
+  et contrôle l'empreinte SHA-256 du fichier avant de l'installer. Un nouveau firmware qui plante, ou
+  qui ne rejoint pas le Wi-Fi en 5 minutes, est remplacé par le précédent au redémarrage.
 - **Fonctionne sans surveillance** : un chien de garde redémarre un programme bloqué ; la caméra est
   relancée, puis l'appareil redémarre (3 fois au plus depuis la mise sous tension) quand elle
   échoue ; l'appareil redémarre aussi après 1 h sans Wi-Fi, ou sans le serveur MQTT qu'il avait
@@ -65,7 +66,8 @@ règle depuis le navigateur, à la manière d'AI-on-the-edge : flash, Wi-Fi, cad
 - Caméra fixée **face** au cadran ; la LED suffit dans une cave.
 
 Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`, `github.com` et
-`release-assets.githubusercontent.com` ; NTP (UDP 123) vers le serveur de temps choisi.
+`release-assets.githubusercontent.com` ; NTP (UDP 123) vers le serveur de temps choisi. Sans Internet :
+le serveur MQTT et, pour les mises à jour, le miroir local (voir *Mises à jour*).
 
 ## Installation
 
@@ -93,16 +95,41 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
 3. Tant qu'une étape manque, l'onglet Niveau la liste avec un bouton *Faire*. Les mêmes réglages
    restent dans les onglets **Cadran** et **Réglages**.
 
-Mise à jour ensuite : entité *Firmware* dans Home Assistant, Réglages → Système (*Rechercher une
-mise à jour*), ou à la main avec le fichier `gauge-cam.bin` de la
-[dernière version](https://github.com/tdebuilt/gauge-cam/releases/latest). Avant d'installer,
-l'appareil contrôle le fichier avec l'empreinte SHA-256 que GitHub publie avec la version.
+## Mises à jour
 
-**Sans Internet sur l'appareil** (réseau IoT fermé vers l'extérieur), un ordinateur du même réseau
-installe la version : `tools/push_firmware.sh http://APPAREIL [vX.Y.Z]` télécharge `gauge-cam.bin`,
-contrôle son empreinte SHA-256 avec celle que GitHub publie, l'envoie à `POST /api/update` et attend
-la nouvelle version. Il demande le mot de passe de l'interface (ou lit `GAUGECAM_PASSWORD`).
-Désactiver la recherche quotidienne (Réglages → Réseau et MQTT), qui échouerait chaque jour.
+Dans tous les cas, l'appareil contrôle le fichier avec l'empreinte SHA-256 publiée avec la version
+avant de l'installer, et revient au firmware précédent si le nouveau ne rejoint pas le Wi-Fi.
+
+| L'appareil… | Comment | Dans Home Assistant |
+|---|---|---|
+| a Internet | rien à régler : il interroge GitHub chaque jour (HTTPS, il lui faut l'heure, donc le NTP) | entité *Firmware* : « Installer » |
+| n'a pas Internet | un **miroir local** des versions, puis son adresse dans Réglages → Réseau et MQTT → *Source des mises à jour* | entité *Firmware* : « Installer », comme ci-dessus |
+| n'a pas Internet, sans miroir | **envoi à la demande** depuis un ordinateur du réseau | rien : la version apparaît une fois installée |
+
+**Miroir local.** Une machine du réseau qui a Internet (serveur, NAS, Raspberry Pi) lance chaque jour
+`tools/mirror_release.py DOSSIER` (Python, bibliothèque standard) et sert `DOSSIER` par n'importe quel
+serveur web statique. L'outil télécharge la dernière version, vérifie son empreinte avec celle que
+GitHub publie, puis écrit `DOSSIER/latest.json` (mêmes champs que l'API de GitHub) et
+`DOSSIER/vX.Y.Z/gauge-cam.bin` ; il garde les 3 dernières versions. Exemple de tâche planifiée :
+
+```
+15 4 * * *  /opt/gauge-cam/tools/mirror_release.py /srv/www/gauge-cam
+```
+
+Puis, dans l'appareil : *Source des mises à jour* = `http://ADRESSE-DU-SERVEUR:PORT/gauge-cam`. Le
+miroir est lu en HTTP sur le réseau local : sans heure, l'appareil ne pourrait pas vérifier un
+certificat. L'empreinte publiée par le miroir garantit que le fichier est intact, et le miroir ne
+publie qu'un fichier qu'il a vérifié contre GitHub. Le pare-feu doit laisser l'appareil joindre ce
+port, et seulement lui.
+
+**Envoi à la demande.** `tools/push_firmware.sh http://APPAREIL [vX.Y.Z]` télécharge `gauge-cam.bin`,
+contrôle son empreinte, l'envoie à `POST /api/update` et attend la nouvelle version. Il demande le mot
+de passe de l'interface (ou lit `GAUGECAM_PASSWORD`). Sans miroir, désactiver la recherche quotidienne
+(Réglages → Réseau et MQTT), qui échouerait chaque jour.
+
+**À la main.** Réglages → Système, fichier `gauge-cam.bin` de la
+[dernière version](https://github.com/tdebuilt/gauge-cam/releases/latest) : aucun contrôle
+d'empreinte dans ce cas, le firmware vérifie seulement que l'image est valide.
 
 ## MQTT
 
@@ -127,7 +154,9 @@ prise de vue non enregistrés), `POST /api/read`,
 `POST /api/mqtt/test` (une connexion avec des réglages MQTT non enregistrés), `GET /api/wifi/scan`,
 `POST /api/restart`, `POST /api/update` (firmware). La clé `setup` de la configuration porte les
 étapes de la mise en service (`photo`, `frame`, `grad`, `check`, `tank`, `ha`) marquées `done` ou
-`later` ; `null` remet une étape à faire. Les mots de passe ne sont jamais renvoyés. Un mot de passe d'interface (utilisateur `admin`) est possible.
+`later` ; `null` remet une étape à faire. `update_url` est la source des mises à jour (vide =
+GitHub). Les mots de passe ne sont jamais renvoyés. Un mot de passe d'interface (utilisateur
+`admin`) est possible.
 
 ## Développement
 
@@ -142,7 +171,9 @@ compressée dans le firmware à la compilation (`tools/prebuild.py`, 150 Ko au p
 réduites par `tools/subset_fonts.py` (SIL OFL, `web/fonts-license.txt`) ; `flasher/index.html` la
 page de flash, qui reprend les mêmes polices. Choix de l'interface : `docs/plan-refonte-ux.md`.
 GitHub Actions teste et compile chaque push, publie la page de flash depuis `main` et une release
-pour chaque tag `v*`.
+pour chaque tag `v*`, avec les empreintes SHA-256 dont dépendent les mises à jour.
+`tools/mirror_release.py` et `tools/push_firmware.sh` : mises à jour sans Internet sur l'appareil
+(voir *Mises à jour*) ; le simulateur accepte `POST /api/update`.
 
 ## Licence
 
