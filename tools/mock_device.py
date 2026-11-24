@@ -21,6 +21,7 @@ import os
 import subprocess
 import sys
 import math
+import re
 import socket
 import tempfile
 import threading
@@ -465,7 +466,14 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/restart":
                 return self.send(200, {"restart": True})
             if path == "/api/update":
-                return self.send(500, {"error": "not supported by the mock"})
+                # Takes the version from the uploaded image, as the device would after a restart.
+                body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                found = re.search(rb"gauge-cam/(v\d+\.\d+\.\d+)", body)
+                if not found:
+                    return self.send(500, {"error": "not a gauge-cam firmware image"})
+                UPDATE["installed"] = found.group(1).decode()
+                log(f"Firmware uploaded: {UPDATE['installed']}")
+                return self.send(200, {"updated": True})
         except (ValueError, subprocess.CalledProcessError) as err:
             return self.send(400, {"error": str(err)})
         self.send(404, {"error": "not found"})

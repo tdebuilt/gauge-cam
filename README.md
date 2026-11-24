@@ -88,7 +88,14 @@ Network: the MQTT server; for updates, HTTPS to `api.github.com`, `github.com` a
 
 Later updates: the *Firmware* entity in Home Assistant, Settings → System (*Check for an update*), or
 by hand with the `gauge-cam.bin` file of the
-[latest release](https://github.com/tdebuilt/gauge-cam/releases/latest).
+[latest release](https://github.com/tdebuilt/gauge-cam/releases/latest). Before installing, the
+device checks the file against the SHA-256 digest GitHub publishes with the release.
+
+**Without Internet on the device** (an IoT network closed to the outside), a computer of the same
+network installs the release: `tools/push_firmware.sh http://DEVICE [vX.Y.Z]` downloads
+`gauge-cam.bin`, checks its SHA-256 against the digest GitHub publishes, uploads it to
+`POST /api/update` and waits for the new version. It asks for the interface password (or reads
+`GAUGECAM_PASSWORD`). Turn off the daily check (Settings → Network and MQTT), which would fail every day.
 
 ## MQTT
 

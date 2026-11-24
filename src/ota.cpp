@@ -7,6 +7,7 @@
 #include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
+#include <mbedtls/sha256.h>
 
 #include "config.h"
 #include "diag.h"
@@ -29,6 +30,7 @@ String release_url;
 String summary;
 String asset_url;
 int asset_size = 0;
+String asset_sha256;  // 64 lowercase hex digits, from the digest GitHub publishes
 String check_error;
 String install_error;
 uint32_t checked_ms = 0;  // 0: never
@@ -77,7 +79,7 @@ void check() {
   http.addHeader("Accept", "application/vnd.github+json");
   const int code = http.GET();
   if (code == 404) {  // no release published yet
-    latest = asset_url = release_url = summary = "";
+    latest = asset_url = asset_sha256 = release_url = summary = "";
     check_error = "";
     http.end();
     return;
@@ -94,6 +96,7 @@ void check() {
   filter["assets"][0]["name"] = true;
   filter["assets"][0]["browser_download_url"] = true;
   filter["assets"][0]["size"] = true;
+  filter["assets"][0]["digest"] = true;
   JsonDocument doc;
   const DeserializationError err = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
   http.end();
@@ -106,10 +109,16 @@ void check() {
   summary = String(doc["body"] | "").substring(0, 250);
   asset_url = "";
   asset_size = 0;
+  asset_sha256 = "";
   for (JsonObjectConst a : doc["assets"].as<JsonArrayConst>()) {
     if (strcmp(a["name"] | "", kAsset) == 0) {
       asset_url = a["browser_download_url"] | "";
       asset_size = a["size"] | 0;
+      const String digest = a["digest"] | "";
+      if (digest.startsWith("sha256:") && digest.length() == 7 + 64) {
+        asset_sha256 = digest.substring(7);
+        asset_sha256.toLowerCase();
+      }
     }
   }
   check_error = "";
@@ -133,6 +142,11 @@ void setProgress(int percent) {
 bool install() {
   if (!isAvailable()) {
     install_error = "no newer release to install";
+    return false;
+  }
+  // Without the digest GitHub publishes, the file could not be checked.
+  if (asset_sha256.length() != 64) {
+    install_error = "the release gives no SHA-256 digest for " + String(kAsset);
     return false;
   }
   if (!enoughMemory(install_error)) return false;
@@ -167,6 +181,9 @@ bool install() {
     return false;
   }
   WiFiClient* stream = http.getStreamPtr();
+  mbedtls_sha256_context sha;
+  mbedtls_sha256_init(&sha);
+  mbedtls_sha256_starts_ret(&sha, 0);
   constexpr size_t kChunk = 4096;
   uint8_t* buf = static_cast<uint8_t*>(malloc(kChunk));
   int done = 0;
@@ -177,6 +194,7 @@ bool install() {
       const int n = stream->readBytes(buf, min(avail, min(kChunk, static_cast<size_t>(size - done))));
       if (n > 0) {
         if (Update.write(buf, n) != static_cast<size_t>(n)) break;
+        mbedtls_sha256_update_ret(&sha, buf, n);
         done += n;
         last_data = millis();
       }
@@ -193,9 +211,21 @@ bool install() {
   }
   free(buf);
   http.end();
+  uint8_t hash[32];
+  mbedtls_sha256_finish_ret(&sha, hash);
+  mbedtls_sha256_free(&sha);
   if (done != size) {
     Update.abort();
     install_error = Update.hasError() ? String(Update.errorString()) : "download interrupted";
+    return false;
+  }
+  // Checked before Update.end(): a mismatching image is never marked bootable.
+  char hex[65];
+  for (int i = 0; i < 32; ++i) snprintf(hex + 2 * i, 3, "%02x", hash[i]);
+  if (asset_sha256 != hex) {
+    Update.abort();
+    install_error = "SHA-256 mismatch: the downloaded file is not the published one";
+    logMsg("Update refused: SHA-256 %s, expected %s", hex, asset_sha256.c_str());
     return false;
   }
   if (!Update.end(true)) {

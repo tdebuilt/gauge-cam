@@ -95,7 +95,14 @@ Réseau : le serveur MQTT ; pour les mises à jour, HTTPS vers `api.github.com`,
 
 Mise à jour ensuite : entité *Firmware* dans Home Assistant, Réglages → Système (*Rechercher une
 mise à jour*), ou à la main avec le fichier `gauge-cam.bin` de la
-[dernière version](https://github.com/tdebuilt/gauge-cam/releases/latest).
+[dernière version](https://github.com/tdebuilt/gauge-cam/releases/latest). Avant d'installer,
+l'appareil contrôle le fichier avec l'empreinte SHA-256 que GitHub publie avec la version.
+
+**Sans Internet sur l'appareil** (réseau IoT fermé vers l'extérieur), un ordinateur du même réseau
+installe la version : `tools/push_firmware.sh http://APPAREIL [vX.Y.Z]` télécharge `gauge-cam.bin`,
+contrôle son empreinte SHA-256 avec celle que GitHub publie, l'envoie à `POST /api/update` et attend
+la nouvelle version. Il demande le mot de passe de l'interface (ou lit `GAUGECAM_PASSWORD`).
+Désactiver la recherche quotidienne (Réglages → Réseau et MQTT), qui échouerait chaque jour.
 
 ## MQTT
 
