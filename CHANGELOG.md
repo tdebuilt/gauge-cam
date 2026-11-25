@@ -3,6 +3,14 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.3
+
+2026-11-25
+
+- The needle is the middle of its dark band, not its darkest ray: a reflection along a wide needle
+  made readings jump by about 3 % of the scale between photos. Tested on a real gauge: 0.2 cm spread
+  instead of 3.3 cm.
+
 ## v0.8.2
 
 2026-11-25

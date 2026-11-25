@@ -8,8 +8,9 @@
 2. **Centre.** L'aiguille tourne autour d'un moyeu noir. L'appareil ajuste un cercle sur le contour du
    moyeu, sans le pied de l'aiguille, et le suit d'une photo à l'autre. Le centre peut aussi être
    fixé sur un pixel.
-3. **Aiguille.** L'aiguille est le rayon le plus sombre entre le moyeu et les graduations. Les marques
-   colorées, comme une zone rouge, ne sont pas prises pour elle, et leurs valeurs restent lisibles.
+3. **Aiguille.** L'aiguille est le milieu de la bande sombre entre le moyeu et les graduations : un
+   reflet le long de l'aiguille ne déplace pas la lecture. Les marques colorées, comme une zone
+   rouge, ne sont pas prises pour elle, et leurs valeurs restent lisibles.
 4. **Valeur.** La valeur est interpolée entre les deux graduations voisines. Une échelle irrégulière
    passe : un cadran Afriso, par exemple, n'a aucun trait entre 0 et 40 cm.
 5. **Volume.** La forme de la cuve convertit le niveau en litres, et le remplissage est le volume

@@ -8,8 +8,9 @@
 2. **Centre.** The needle turns around a dark hub. The device fits a circle to the hub's outline,
    leaving out the root of the needle, and follows it from one photo to the next. You can also fix
    the centre on a pixel instead.
-3. **Needle.** The needle is the darkest ray between the hub and the graduations. Coloured marks,
-   such as a red zone, are not mistaken for it, and their values can still be read.
+3. **Needle.** The needle is the middle of the dark band between the hub and the graduations, so a
+   reflection along it does not move the reading. Coloured marks, such as a red zone, are not
+   mistaken for it, and their values can still be read.
 4. **Value.** The value is interpolated between the two neighbouring graduations. A scale with
    uneven spacing is fine: an Afriso dial, for example, has no mark between 0 and 40 cm.
 5. **Volume.** The level becomes litres through the tank shape, and the fill level is the volume

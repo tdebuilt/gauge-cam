@@ -349,15 +349,22 @@ bool findNeedle(const Image& img, float cx, float cy, float r_start,
     if (best < 0 || profile[i] < profile[best]) best = i;
   }
   if (best < 0) return false;
-  // Sub-step refinement with a parabola through the minimum and neighbours.
-  float shift = 0;
-  if (best > 0 && best < steps - 1 && !std::isnan(profile[best - 1]) &&
-      !std::isnan(profile[best + 1])) {
-    const float l = profile[best - 1], m = profile[best], r = profile[best + 1];
-    const float denom = l - 2 * m + r;
-    if (denom > 0) shift = 0.5f * (l - r) / denom;
-  }
-  angle = scale.angleAt(first + (best + shift) * step_deg);
+  // The needle is the middle of its dark band, not its darkest ray: a needle
+  // with a lighter ridge (a reflection of the LED along it) has two dark
+  // edges, and the darkest one changes from photo to photo. The band holds
+  // the rays darker than halfway between the minimum and the median; its two
+  // edges are placed where the profile crosses that level, between rays.
+  const float half = profile[best] + 0.5f * (medianOf(valid) - profile[best]);
+  int lo = best, hi = best;
+  while (lo > 0 && !std::isnan(profile[lo - 1]) && profile[lo - 1] < half) --lo;
+  while (hi < steps - 1 && !std::isnan(profile[hi + 1]) && profile[hi + 1] < half) ++hi;
+  auto crossing = [&](int inside, int outside) {
+    if (outside < 0 || outside >= steps || std::isnan(profile[outside])) return static_cast<float>(inside);
+    const float a = profile[inside], b = profile[outside];
+    return inside + (outside - inside) * (b > a ? (half - a) / (b - a) : 0.f);
+  };
+  const float centre = 0.5f * (crossing(lo, lo - 1) + crossing(hi, hi + 1));
+  angle = scale.angleAt(first + centre * step_deg);
   contrast = medianOf(valid) - profile[best];
   return true;
 }

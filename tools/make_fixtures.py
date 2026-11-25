@@ -24,7 +24,7 @@ def at(cx, cy, angle, r):
     return cx + r * math.sin(rad), cy - r * math.cos(rad)
 
 
-def synthetic_dial(needle_value, clockwise=True, size=400, pivot=(170, 200), red_zone=True):
+def synthetic_dial(needle_value, clockwise=True, size=400, pivot=(170, 200), red_zone=True, ridge=False):
     """Off-centre pivot, 0-100 over 240 degrees, ticks, numerals, red reserve zone."""
     image = Image.new("RGB", (size, size), (90, 90, 90))
     draw = ImageDraw.Draw(image)
@@ -47,7 +47,15 @@ def synthetic_dial(needle_value, clockwise=True, size=400, pivot=(170, 200), red
     red = angle_of(75)
     draw.line((*at(cx, cy, red, 60), *at(cx, cy, red, 110)), fill=(210, 30, 30), width=8)
     a = angle_of(needle_value)
-    draw.line((cx, cy, *at(cx, cy, a, 125)), fill=(15, 15, 15), width=6)
+    if ridge:
+        # Wide needle with a light ridge along its middle (the LED reflected on
+        # it) and one edge darker than the other: its darkest ray is an edge.
+        draw.line((cx, cy, *at(cx, cy, a, 125)), fill=(40, 40, 40), width=12)
+        draw.line((cx, cy, *at(cx, cy, a, 125)), fill=(70, 70, 70), width=4)
+        ox, oy = 4.5 * math.cos(math.radians(a)), 4.5 * math.sin(math.radians(a))
+        draw.line((cx + ox, cy + oy, *(v + d for v, d in zip(at(cx, cy, a, 125), (ox, oy)))), fill=(5, 5, 5), width=3)
+    else:
+        draw.line((cx, cy, *at(cx, cy, a, 125)), fill=(15, 15, 15), width=6)
     draw.ellipse((cx - 22, cy - 22, cx + 22, cy + 22), fill=(10, 10, 10))
     return image, points
 
@@ -106,6 +114,9 @@ def main(out_dir):
             case(f"synth_{tag}_{value}", img, (0, 0, 0, 0), "hub", (176, 195), value, 1, pts)
     img, pts = synthetic_dial(42)
     case("synth_fixed_42", img, (0, 0, 0, 0), "fixed", (170, 200), 42, 1, pts)
+    for value in (37, 64, 88):
+        img, pts = synthetic_dial(value, ridge=True)
+        case(f"synth_ridge_{value}", img, (0, 0, 0, 0), "fixed", (170, 200), value, 0.6, pts)
 
     with open(os.path.join(out_dir, "cases.txt"), "w") as handle:
         handle.write("\n".join(lines) + "\n")
