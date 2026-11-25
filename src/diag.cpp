@@ -1,5 +1,6 @@
 #include "diag.h"
 
+#include <WiFi.h>
 #include <esp_attr.h>
 #include <esp_sntp.h>
 #include <esp_system.h>
@@ -150,6 +151,10 @@ void diagRestart(const String& why) {
   logMsg("Restarting: %s", why.c_str());
   strlcpy(persistent.note, why.c_str(), sizeof persistent.note);
   persistent.magic = kMagic;
+  // Leave the access point before restarting: with PMF, an access point that still holds the old
+  // association refuses the device for a while, and it would join a farther one instead.
+  WiFi.setAutoReconnect(false);
+  WiFi.disconnect();
   Serial.flush();
   delay(200);
   ESP.restart();

@@ -3,6 +3,13 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.5
+
+2026-11-25
+
+- The device leaves its access point before a planned restart (update, settings): the access point no
+  longer refuses it for a while afterwards, so it joins the strongest one again instead of a farther one.
+
 ## v0.8.4
 
 2026-11-25
