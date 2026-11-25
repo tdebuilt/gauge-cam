@@ -3,6 +3,13 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.1
+
+2026-11-25
+
+- The clock is trusted only once NTP has answered: right after an update, a wrong date (2083) could
+  reach Home Assistant as the time of a reading and of the last start, and trigger a false alert.
+
 ## v0.8.0
 
 2026-11-24

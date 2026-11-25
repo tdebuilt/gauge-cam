@@ -1,6 +1,7 @@
 #include "diag.h"
 
 #include <esp_attr.h>
+#include <esp_sntp.h>
 #include <esp_system.h>
 #include <stdarg.h>
 #include <time.h>
@@ -160,11 +161,21 @@ uint8_t cameraRestartCount() { return persistent.camera_restarts; }
 
 void setCameraRestartCount(uint8_t n) { persistent.camera_restarts = n; }
 
+namespace {
+// Set by the first NTP answer since boot. Until then the clock is not
+// trusted: after a restart it can hold a wrong date (seen in 2083 after an
+// update), which Home Assistant would show as the time of a reading.
+volatile bool clock_synced = false;
+void onClockSync(struct timeval*) { clock_synced = true; }
+}  // namespace
+
 void clockBegin(const String& server) {
+  sntp_set_time_sync_notification_cb(onClockSync);
   if (server.length()) configTime(0, 0, server.c_str());
 }
 
 uint32_t epochNow() {
+  if (!clock_synced) return 0;
   const time_t now = time(nullptr);
   return now > kValidEpoch ? static_cast<uint32_t>(now) : 0;
 }

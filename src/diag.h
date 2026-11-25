@@ -27,7 +27,7 @@ void setCameraRestartCount(uint8_t n);
 
 // Starts or changes the NTP server (empty: no clock).
 void clockBegin(const String& server);
-// Seconds since 1970 (UTC), 0 while the clock is not set.
+// Seconds since 1970 (UTC), 0 until NTP has answered once since boot.
 uint32_t epochNow();
 // "2026-11-14T08:30:00+00:00", "" for 0.
 String isoTime(uint32_t epoch);
