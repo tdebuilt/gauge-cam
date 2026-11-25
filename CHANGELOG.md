@@ -3,6 +3,14 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.4
+
+2026-11-25
+
+- With several access points on the same network, the device joins the strongest one instead of the
+  first one found on the lowest channel. Seen on a real gauge: -87 dBm on the far access point,
+  -74 dBm on the near one.
+
 ## v0.8.3
 
 2026-11-25

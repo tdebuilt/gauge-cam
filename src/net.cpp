@@ -51,6 +51,10 @@ void netBegin(const String& hostname) {
   WiFi.setHostname(host.c_str());
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
+  // Scan every channel and join the strongest access point of the SSID: the default fast scan
+  // joins the first one found, so a far access point on channel 1 wins over a near one on 6.
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
   down_since = millis();
   if (config.wifi_ssid.length()) {
     WiFi.begin(config.wifi_ssid.c_str(), config.wifi_pass.c_str());
