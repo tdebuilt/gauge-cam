@@ -33,6 +33,9 @@ Everything runs on the ESP32, in plain C++: no neural network and no server.
 - **Stuck program**: a watchdog restarts it.
 - **Camera failure**: the device starts the camera again, then restarts, at most 3 times after power-on.
 - **Network loss**: the device restarts after 1 hour without Wi-Fi, or without the MQTT server it had reached.
+- **Several access points**: the device joins the strongest one, and leaves it before a planned restart.
+  Two minutes after each connection it scans again and moves, at most once an hour, to an access point
+  at least 10 dB stronger (after a power cut, the near one may refuse it for a while).
 - **Log**: Settings → System keeps the last 80 events and the cause of the last restart (crash,
   watchdog, brown-out…).
 - **Clock**: an NTP server dates the readings, the refused readings and the log. The default is

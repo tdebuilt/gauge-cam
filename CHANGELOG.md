@@ -3,6 +3,14 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.6
+
+2026-11-25
+
+- After a power cut the near access point may refuse the device for a while, so it joined a farther
+  one and stayed there. Two minutes after connecting, it now moves to an access point of the same
+  network at least 10 dB stronger, at most once an hour.
+
 ## v0.8.5
 
 2026-11-25

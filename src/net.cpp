@@ -12,6 +12,9 @@ namespace {
 constexpr uint32_t kApAfterMs = 30000;  // without station link
 constexpr uint32_t kApKeepMs = 120000;  // after the station link is back
 constexpr uint32_t kRetryMs = 30000;
+constexpr uint32_t kRoamCheckMs = 120000;     // after a connection, look for a stronger access point
+constexpr uint32_t kRoamEveryMs = 3600000;    // at most one move per hour, so it never loops
+constexpr int kRoamGainDb = 10;               // move only for a clearly stronger access point
 
 String host;
 DNSServer dns;
@@ -21,6 +24,37 @@ uint32_t down_since = 0;
 uint32_t up_since = 0;
 uint32_t last_retry = 0;
 uint32_t last_ap_try = 0;
+bool roam_checked = false;
+uint32_t last_roam = 0;
+bool roamed_once = false;
+
+// After a power cut the access point may still hold the old association (PMF) and refuse the
+// device for a while, so it joins a farther one and would stay there. Once settled, scan again
+// and move to an access point of the same network that is clearly stronger.
+void roamCheck() {
+  roam_checked = true;
+  if (roamed_once && millis() - last_roam < kRoamEveryMs) return;
+  const int current = WiFi.RSSI();
+  const String current_bssid = WiFi.BSSIDstr();
+  const int n = WiFi.scanNetworks();
+  int best = -1;
+  for (int i = 0; i < n; ++i) {
+    if (WiFi.SSID(i) != config.wifi_ssid || WiFi.BSSIDstr(i) == current_bssid) continue;
+    if (best < 0 || WiFi.RSSI(i) > WiFi.RSSI(best)) best = i;
+  }
+  if (best >= 0 && WiFi.RSSI(best) >= current + kRoamGainDb) {
+    uint8_t bssid[6];
+    memcpy(bssid, WiFi.BSSID(best), sizeof bssid);
+    const int32_t channel = WiFi.channel(best);
+    logMsg("Wi-Fi: moving to a stronger access point (%d dBm instead of %d dBm)", WiFi.RSSI(best), current);
+    WiFi.scanDelete();
+    roamed_once = true;
+    last_roam = millis();
+    WiFi.begin(config.wifi_ssid.c_str(), config.wifi_pass.c_str(), channel, bssid);
+    return;
+  }
+  WiFi.scanDelete();
+}
 
 // Open while Wi-Fi has never worked (first set-up, mistyped password);
 // afterwards protected by ap_password, or not started at all without one.
@@ -83,10 +117,12 @@ void netLoop() {
     }
     down_since = 0;
     if (ap_active && now - up_since > kApKeepMs) stopAp();
+    if (!roam_checked && !ap_active && now - up_since > kRoamCheckMs) roamCheck();
     return;
   }
   if (up_since) logMsg("Wi-Fi connection lost");
   up_since = 0;
+  roam_checked = false;
   if (!down_since) down_since = now;
   if (!ap_active && now - down_since > kApAfterMs && now - last_ap_try > kApAfterMs) {
     last_ap_try = now;
