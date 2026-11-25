@@ -14,7 +14,7 @@ constexpr uint32_t kApKeepMs = 120000;  // after the station link is back
 constexpr uint32_t kRetryMs = 30000;
 constexpr uint32_t kRoamCheckMs = 120000;     // after a connection, look for a stronger access point
 constexpr uint32_t kRoamEveryMs = 3600000;    // at most one move per hour, so it never loops
-constexpr int kRoamGainDb = 10;               // move only for a clearly stronger access point
+constexpr int kRoamGainDb = 6;                // move only for a clearly stronger access point
 
 String host;
 DNSServer dns;
@@ -33,7 +33,10 @@ bool roamed_once = false;
 // and move to an access point of the same network that is clearly stronger.
 void roamCheck() {
   roam_checked = true;
-  if (roamed_once && millis() - last_roam < kRoamEveryMs) return;
+  if (roamed_once && millis() - last_roam < kRoamEveryMs) {
+    logMsg("Wi-Fi: access point check skipped (moved less than 1 h ago)");
+    return;
+  }
   const int current = WiFi.RSSI();
   const String current_bssid = WiFi.BSSIDstr();
   const int n = WiFi.scanNetworks();
@@ -52,6 +55,11 @@ void roamCheck() {
     last_roam = millis();
     WiFi.begin(config.wifi_ssid.c_str(), config.wifi_pass.c_str(), channel, bssid);
     return;
+  }
+  if (best >= 0) {
+    logMsg("Wi-Fi: staying on this access point (%d dBm, best other %d dBm)", current, WiFi.RSSI(best));
+  } else {
+    logMsg("Wi-Fi: staying on this access point (%d dBm, no other one)", current);
   }
   WiFi.scanDelete();
 }

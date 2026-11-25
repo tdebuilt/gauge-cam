@@ -35,7 +35,7 @@ Tout tourne sur l'ESP32, en C++ simple : ni réseau de neurones, ni serveur.
 - **Réseau perdu** : l'appareil redémarre après 1 h sans Wi-Fi, ou sans le serveur MQTT qu'il avait joint.
 - **Plusieurs points d'accès** : l'appareil rejoint le plus fort, et le quitte avant un redémarrage prévu.
   Deux minutes après chaque connexion, il scanne de nouveau et passe, au plus une fois par heure, sur un
-  point d'accès plus fort d'au moins 10 dB (après une coupure de courant, le proche peut le refuser un moment).
+  point d'accès plus fort d'au moins 6 dB (après une coupure de courant, le proche peut le refuser un moment). Le journal donne l'issue de chaque contrôle.
 - **Journal** : Réglages → Système garde les 80 derniers événements et la cause du dernier
   redémarrage (plantage, chien de garde, sous-tension…).
 - **Horloge** : un serveur NTP date les lectures, les lectures refusées et le journal. Par défaut

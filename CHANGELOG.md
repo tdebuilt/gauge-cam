@@ -3,6 +3,13 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.7
+
+2026-11-25
+
+- The device moves to an access point 6 dB stronger (was 10 dB): on a real gauge the gap between the
+  near and the far one varied from 5 to 15 dB. Each check is now written to the log, also when it stays.
+
 ## v0.8.6
 
 2026-11-25
