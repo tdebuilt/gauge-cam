@@ -45,6 +45,11 @@ uint32_t wifi_up_since = 0;
 
 void schedule(uint32_t in_ms) { next_read_ms = millis() + in_ms; }
 
+// The first reading after boot waits for NTP (2 min at most), so that Home
+// Assistant gets its time instead of an unknown "last reading".
+constexpr uint32_t kClockWaitMs = 120000;
+bool clock_wait = true;
+
 // Restarts for a camera fault, at most kCameraRestarts times since power on
 // so that a dead camera does not hide the web interface behind restarts.
 void cameraRestart(const String& why) {
@@ -245,7 +250,9 @@ void loop() {
   otaLoop();
 
   if (mqttTakeReadRequest()) next_read_ms = millis();
-  if (static_cast<int32_t>(millis() - next_read_ms) >= 0) {
+  const bool due = static_cast<int32_t>(millis() - next_read_ms) >= 0;
+  if (due) clock_wait = clock_wait && !epochNow() && config.ntp_server.length() && millis() < kClockWaitMs;
+  if (due && !clock_wait) {
     schedule(config.interval_s * 1000UL);
     if (camera_ok && config.dialReady()) {
       appRead(true);

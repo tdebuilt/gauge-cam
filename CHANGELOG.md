@@ -3,6 +3,13 @@
 One section per release, newest first. The section of a release becomes its release notes, which
 Home Assistant shows on the *Firmware* entity: keep it short, the first 250 characters matter.
 
+## v0.8.2
+
+2026-11-25
+
+- The first reading after a start waits for the clock (2 min at most): Home Assistant no longer shows
+  an unknown *Last reading* until the next scheduled one.
+
 ## v0.8.1
 
 2026-11-25
